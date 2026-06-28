@@ -10,17 +10,17 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 3 — ETL terremoti (USGS) (prossima)
+- **Sezione in corso:** SEZIONE 4 — ETL vulcani (GVP) (prossima)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** job ingestion USGS idempotente → tabella `events` (upsert su `id`)
-- **Deciso:** schema `events` unificato creato (migrazione `0001`); `geom` mantenuta da **trigger DB** (l'ETL scrive solo `lat`/`lon`).
+- **Prossimo passo:** job ingestion settimanale Smithsonian GVP → stesso schema `events`
+- **Deciso:** ETL terremoti USGS idempotente attivo (finestra 24h, `id = usgs:<code>`, upsert `ON CONFLICT`); `severity = clamp(mag/10)`; `geom` popolata dal trigger DB (verificato).
 
 ### Avanzamento sezioni
 | # | Sezione | Stato |
 |---|---------|-------|
 | 1 | Setup repo & scaffold | ✅ fatto |
 | 2 | DB & schema eventi unificato | ✅ fatto |
-| 3 | ETL terremoti (USGS) | ⬜ da fare |
+| 3 | ETL terremoti (USGS) | ✅ fatto |
 | 4 | ETL vulcani (GVP) | ⬜ da fare |
 | 5 | Scheduling (Actions cron) | ⬜ da fare |
 | 6 | Frontend base + globo 3D | ⬜ da fare |
@@ -53,12 +53,42 @@ sessioni future non la rimettono in discussione.
 | 2026-06-28 | Enum | `source`/`event_type` come **enum nativi Postgres** (`source_enum`, `event_type_enum`) | Valori chiusi e noti; allineati ai `Literal` Pydantic in `api/schemas.py` |
 | 2026-06-28 | Alembic | `alembic.ini` in `db/`, `script_location=%(here)s/migrations`; si lancia da root con `-c db/alembic.ini` | Migrazioni isolate sotto `db/`, path indipendenti dal cwd |
 | 2026-06-28 | Modelli | ORM `db.models.Event` (con `geom`) vs Pydantic `api.schemas.Event` (`from_attributes`, espone `lat`/`lon`, mai `geom`) | Separazione netta: persistenza geo dentro il DB, contratto API senza geometria interna |
+| 2026-06-28 | ETL window | Finestra terremoti default **24h** (`--hours`, parametrizzabile) | Copre la cadenza oraria dello scheduling (SEZIONE 5) con margine per recuperare run saltati |
+| 2026-06-28 | Severity | `severity = clamp(magnitude/10, 0, 1)` (lineare); mag negative→0, `mag` null→`severity` null | Mappatura semplice/monotòna per il rendering (size/colore epicentro); coerente col CHECK `severity ∈ [0,1] or null` |
+| 2026-06-28 | Idempotenza | Chiave `id = "usgs:" + properties.code`; upsert `INSERT ... ON CONFLICT (id) DO UPDATE` | Rilancio del job non duplica (verificato 213→213); dedup intra-finestra per `id` (USGS rivede gli eventi) |
+| 2026-06-28 | ETL/geom | L'upsert scrive solo le colonne dati (no `geom`); il trigger DB ricalcola `geom` da `lat`/`lon` | Rispetta la decisione "single source of truth"; ETL non conosce PostGIS (verificato: 0 `geom` NULL) |
+| 2026-06-28 | ETL HTTP | `httpx` con timeout 30s + retry (3 tentativi, backoff esponenziale) solo su 429/5xx; 4xx falliscono subito | Resilienza ai transitori senza martellare su errori non recuperabili |
+| 2026-06-28 | Logging | Logging strutturato **JSON-line** (`etl.logging_setup`), campi `extra` inline | Output grepabile/ingeribile; un job CLI scrive eventi tracciabili (`job_start`/`usgs_fetch_ok`/`job_done`) |
 
 ---
 
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-28 — SEZIONE 3: ETL terremoti (USGS) ✅
+- Cosa è stato fatto: pipeline di ingestion idempotente dei terremoti USGS
+  (GeoJSON → normalizzazione Pandas → upsert in `events`), con retry/timeout HTTP,
+  logging strutturato e test offline su fixture.
+- File creati:
+  - `etl/config.py` (URL DB normalizzata psycopg, costanti USGS, finestra default 24h)
+  - `etl/logging_setup.py` (formatter JSON-line + `configure_logging`)
+  - `etl/usgs.py` (client httpx con retry/backoff su 429/5xx, timeout)
+  - `etl/normalize.py` (GeoJSON→DataFrame, `severity_from_magnitude`, `to_records`)
+  - `etl/db.py` (`get_engine`, `upsert_events` con `ON CONFLICT (id) DO UPDATE`)
+  - `etl/jobs/earthquakes.py` (orchestrazione + CLI `--hours/--min-magnitude/--dry-run`)
+  - `etl/tests/fixtures/usgs_sample.geojson` (5 feature, 1 senza `code` da scartare)
+  - `etl/tests/test_normalize.py` (11 test: id, coords lon/lat/depth, ms→UTC,
+    severity/clamp, meta, dedup, tipi puliti)
+- Scelte prese: vedi tabella Decisioni (finestra 24h, severity `clamp(mag/10)`,
+  idempotenza `usgs:<code>`, ETL non tocca `geom`, retry httpx, logging JSON).
+- Verifiche eseguite:
+  - `python -m etl.jobs.earthquakes` → fetch 213 feature 24h, `job_done events=213`
+  - rilancio → ancora 213 righe `source='usgs'` (idempotenza OK, 213→213)
+  - `SELECT count(*) ... WHERE geom IS NULL` → **0** (trigger popola `geom`);
+    `ST_AsText(geom)` coincide con `lat`/`lon`, `severity = mag/10`
+  - `ruff check .` → All checks passed · `python -m pytest` → 23 passed
+- Problemi aperti / TODO: nessuno bloccante. (Promemoria: usare `python -m pytest`.)
 
 ### 2026-06-28 — SEZIONE 2: DB & schema eventi unificato ✅
 - Cosa è stato fatto: schema `events` unificato (terremoti + vulcani) con PostGIS,

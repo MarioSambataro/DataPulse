@@ -1,0 +1,118 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "generated": 1719576000000,
+    "title": "USGS Earthquakes (fixture di test)",
+    "count": 5
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "us7000abcd",
+      "properties": {
+        "mag": 5.8,
+        "place": "South of the Fiji Islands",
+        "time": 1719571200000,
+        "updated": 1719572000000,
+        "title": "M 5.8 - South of the Fiji Islands",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000abcd",
+        "type": "earthquake",
+        "magType": "mww",
+        "status": "reviewed",
+        "tsunami": 0,
+        "net": "us",
+        "code": "7000abcd",
+        "ids": ",us7000abcd,"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-178.234, -23.456, 567.8]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ci39812345",
+      "properties": {
+        "mag": 1.24,
+        "place": "10km N of Ridgecrest, CA",
+        "time": 1719567600000,
+        "title": "M 1.2 - 10km N of Ridgecrest, CA",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci39812345",
+        "type": "earthquake",
+        "magType": "ml",
+        "status": "automatic",
+        "tsunami": 0,
+        "net": "ci",
+        "code": "39812345",
+        "ids": ",ci39812345,"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-117.6543, 35.7654, 8.2]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nc73matt",
+      "properties": {
+        "mag": null,
+        "place": "Central California",
+        "time": 1719564000000,
+        "title": "M ? - Central California",
+        "type": "earthquake",
+        "magType": null,
+        "status": "automatic",
+        "tsunami": 0,
+        "net": "nc",
+        "code": "73matt",
+        "ids": ",nc73matt,"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-121.123, 36.789, 2.5]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ak0212neg",
+      "properties": {
+        "mag": -0.5,
+        "place": "Southern Alaska",
+        "time": 1719560400000,
+        "title": "M -0.5 - Southern Alaska",
+        "type": "earthquake",
+        "magType": "ml",
+        "status": "automatic",
+        "tsunami": 0,
+        "net": "ak",
+        "code": "0212neg",
+        "ids": ",ak0212neg,"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-150.5, 61.2, 14.0]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us_nocode",
+      "properties": {
+        "mag": 4.1,
+        "place": "Nowhere (feature senza code -> scartata)",
+        "time": 1719556800000,
+        "title": "M 4.1 - Nowhere",
+        "type": "earthquake",
+        "magType": "mb",
+        "status": "reviewed",
+        "tsunami": 0,
+        "net": "us",
+        "code": null,
+        "ids": ",us_nocode,"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.0, 20.0, 30.0]
+      }
+    }
+  ]
+}
