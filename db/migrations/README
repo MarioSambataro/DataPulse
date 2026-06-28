@@ -1,0 +1,9 @@
+Migrazioni Alembic di DataPulse.
+
+Generic single-database configuration.
+La URL del DB è letta da DATABASE_URL (.env), vedi env.py.
+
+Comandi (dalla root del repo):
+  alembic -c db/alembic.ini upgrade head      # applica
+  alembic -c db/alembic.ini downgrade -1      # torna indietro di 1
+  alembic -c db/alembic.ini revision -m "..." # nuova revisione

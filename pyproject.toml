@@ -18,22 +18,32 @@ api = [
     "pydantic>=2.7",
     "uvicorn[standard]>=0.30",
 ]
+# DB & migrazioni (SEZIONE 2). psycopg v3 con binary per evitare build di libpq su Windows.
+db = [
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+    "geoalchemy2>=0.15",
+    "python-dotenv>=1.0",
+]
 dev = [
     "ruff>=0.5",
     "pytest>=8.2",
 ]
 
 [tool.setuptools.packages.find]
-include = ["etl*", "api*"]
+include = ["etl*", "api*", "db*"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["etl", "api"]
+src = ["etl", "api", "db"]
+# Le migrazioni Alembic sono generate/boilerplate: niente lint rumoroso.
+extend-exclude = ["db/migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-testpaths = ["etl", "api"]
+testpaths = ["etl", "api", "db"]
 addopts = "-q"

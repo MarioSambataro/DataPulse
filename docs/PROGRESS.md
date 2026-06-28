@@ -10,16 +10,16 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 2 — DB & schema eventi unificato (prossima)
+- **Sezione in corso:** SEZIONE 3 — ETL terremoti (USGS) (prossima)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** Alembic init + prima migrazione tabella `events` con PostGIS (vedi SEZIONE 2)
-- **Deciso:** PostGIS = SÌ (colonna `geom` + indice GiST). Immagine DB già aggiornata a `postgis/postgis:16-3.4`.
+- **Prossimo passo:** job ingestion USGS idempotente → tabella `events` (upsert su `id`)
+- **Deciso:** schema `events` unificato creato (migrazione `0001`); `geom` mantenuta da **trigger DB** (l'ETL scrive solo `lat`/`lon`).
 
 ### Avanzamento sezioni
 | # | Sezione | Stato |
 |---|---------|-------|
 | 1 | Setup repo & scaffold | ✅ fatto |
-| 2 | DB & schema eventi unificato | ⬜ da fare |
+| 2 | DB & schema eventi unificato | ✅ fatto |
 | 3 | ETL terremoti (USGS) | ⬜ da fare |
 | 4 | ETL vulcani (GVP) | ⬜ da fare |
 | 5 | Scheduling (Actions cron) | ⬜ da fare |
@@ -47,12 +47,46 @@ sessioni future non la rimettono in discussione.
 | 2026-06-28 | DB | Postgres **16** via docker-compose, immagine `postgis/postgis:16-3.4`, volume `postgres_data` | Versione LTS stabile + PostGIS preinstallato |
 | 2026-06-28 | Geo | **PostGIS = SÌ.** Colonna `geom geography(Point,4326)` + indice GiST, oltre a `lat`/`lon` grezzi | Scelta dell'utente. Abilita query spaziali (`ST_DWithin`, correlazioni terremoto↔vulcano); `lat`/`lon` restano per il frontend |
 | 2026-06-28 | CI | 2 job: `backend` (ruff+pytest reali) e `frontend` (eslint+vitest, `--if-present`) | Scheletro che gira verde su repo quasi-vuoto senza rompersi |
+| 2026-06-28 | Deps DB | Extra dedicato `db` nel `pyproject.toml`: `sqlalchemy`, `alembic`, `psycopg[binary]`, `geoalchemy2`, `python-dotenv` | Installazione on-demand del layer DB; `psycopg[binary]` evita build di libpq su Windows. CI ora installa `[etl,api,db,dev]` |
+| 2026-06-28 | DB driver | URL `postgresql://` nel `.env`; `env.py` la normalizza a `postgresql+psycopg://` (psycopg v3) | Un solo `.env` valido sia per docker-compose sia per SQLAlchemy/Alembic |
+| 2026-06-28 | Geo sync | `geom` mantenuta da **trigger DB** (`BEFORE INSERT/UPDATE OF lat,lon`), non in fase di upsert ETL | `lat`/`lon` unica fonte di verità → `geom` non può divergere; ETL non tocca PostGIS; `ON CONFLICT DO UPDATE` ricalcola `geom` |
+| 2026-06-28 | Enum | `source`/`event_type` come **enum nativi Postgres** (`source_enum`, `event_type_enum`) | Valori chiusi e noti; allineati ai `Literal` Pydantic in `api/schemas.py` |
+| 2026-06-28 | Alembic | `alembic.ini` in `db/`, `script_location=%(here)s/migrations`; si lancia da root con `-c db/alembic.ini` | Migrazioni isolate sotto `db/`, path indipendenti dal cwd |
+| 2026-06-28 | Modelli | ORM `db.models.Event` (con `geom`) vs Pydantic `api.schemas.Event` (`from_attributes`, espone `lat`/`lon`, mai `geom`) | Separazione netta: persistenza geo dentro il DB, contratto API senza geometria interna |
 
 ---
 
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-28 — SEZIONE 2: DB & schema eventi unificato ✅
+- Cosa è stato fatto: schema `events` unificato (terremoti + vulcani) con PostGIS,
+  prima migrazione Alembic, modello ORM + modello Pydantic condiviso, trigger di
+  sincronizzazione `geom`, documentazione del mapping.
+- File creati/modificati:
+  - `pyproject.toml` (extra `db`, packages/ruff includono `db`, exclude migrazioni)
+  - `db/models.py` (SQLAlchemy `Event` + enum `source`/`event_type`)
+  - `db/alembic.ini`, `db/migrations/env.py`, `script.py.mako`, `README`
+  - `db/migrations/versions/0001_initial_events_schema.py` (PostGIS + tabella + indici + trigger)
+  - `api/schemas.py` (Pydantic v2 `Event`, espone `lat`/`lon`, non `geom`)
+  - `docs/SCHEMA_EVENTI.md` (mapping schema + scelta trigger documentata)
+  - `db/README.md` (aggiornato), `.github/workflows/ci.yml` (install `[etl,api,db,dev]`)
+  - test: `db/tests/test_schema.py`, `api/tests/test_schemas.py`
+- Scelte prese: vedi tabella Decisioni (extra `db`, driver psycopg, trigger geom,
+  enum nativi, layout Alembic, separazione ORM/Pydantic).
+- Verifiche eseguite:
+  - `cp .env.example .env` + `docker compose up -d postgres` → container healthy
+  - `pip install -e ".[etl,api,db,dev]"` → OK
+  - `alembic -c db/alembic.ini upgrade head` → `Running upgrade -> 0001` (no errori)
+  - `\d events` → PostGIS 3.4 attivo, colonna `geom geography(Point,4326)`, indici
+    `ix_events_occurred_at` (btree DESC), `ix_events_event_type` (btree),
+    `ix_events_geom` (**gist**), trigger `trg_events_sync_geom` presente
+  - Test trigger: insert con solo `lat`/`lon` → `geom = POINT(15.65 38.1)` SRID 4326;
+    update di `lat`/`lon` → `geom` ricalcolata a `POINT(0 0)`
+  - `ruff check .` → All checks passed · `python -m pytest` → 12 passed
+- Problemi aperti / TODO: nessuno bloccante. Nota: il `pytest` "nudo" sul PATH punta
+  a un Python 3.11 senza le deps → usare **`python -m pytest`** (3.14).
 
 ### 2026-06-28 — SEZIONE 1: Setup repo & scaffold ✅
 - Cosa è stato fatto: creata struttura monorepo, docker-compose Postgres,
