@@ -10,9 +10,9 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 6 — Frontend base + globo 3D (prossima)
+- **Sezione in corso:** SEZIONE 9 — API FastAPI completa (prossima)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** push del branch (con ok utente) per attivare le Actions; poi SEZIONE 6
+- **Prossimo passo:** SEZIONE 9 (API) anticipata prima del frontend, come da ordine consigliato del piano (1→2→3→4→5 → **9** → 6→7→8 → 10→11), così il FE avrà dati veri da consumare. Branch già pushato (commit `cc75dc8`); secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
 - **Deciso:** 2 workflow cron attivi (terremoti `0 * * * *` orario, vulcani `0 6 * * *` giornaliero), entrambi con `workflow_dispatch` + concurrency group; `DATABASE_URL` da `secrets.DATABASE_URL` (secret + DB prod → SEZIONE 10); badge status nel README. CI invariata (lint+test su push/PR).
 
 ### Avanzamento sezioni
