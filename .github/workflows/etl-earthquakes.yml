@@ -1,0 +1,36 @@
+name: ETL Earthquakes (USGS)
+
+# Ingestion terremoti USGS: cadenza ORARIA.
+# Il job e' idempotente (id = "usgs:<code>" + ON CONFLICT DO UPDATE): run
+# sovrapposti o ripetuti NON creano duplicati. La finestra di default e' 24h,
+# quindi un run orario ha ampio margine per recuperare eventuali run saltati.
+on:
+  schedule:
+    # Ogni ora, al minuto 0 (UTC). GitHub Actions usa sempre UTC.
+    - cron: "0 * * * *"
+  # Trigger manuale dalla tab Actions (utile per testare il workflow).
+  workflow_dispatch:
+
+# Evita run sovrapposti dello stesso job: se un run e' ancora in corso quando
+# scatta il cron successivo, quello in coda viene annullato (il prossimo recupera
+# comunque, finestra 24h + idempotenza).
+concurrency:
+  group: etl-earthquakes
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Ingest USGS earthquakes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (etl + db)
+        run: pip install -e ".[etl,db]"
+      - name: Run ETL earthquakes
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m etl.jobs.earthquakes

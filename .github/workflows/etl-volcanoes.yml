@@ -1,0 +1,40 @@
+name: ETL Volcanoes (GVP)
+
+# Ingestion vulcani dal Weekly Volcanic Activity Report dello Smithsonian/GVP.
+# La FONTE e' settimanale (report pubblicato il giovedi ~23:00 UTC), ma il cron
+# qui e' GIORNALIERO per scelta: il job e' idempotente per settimana
+# (id = "gvp:<volcano_number>:<week_iso>" + ON CONFLICT DO UPDATE), quindi i run
+# infrasettimanali aggiornano gli stessi ~24 record senza duplicare.
+# Giornaliero vs settimanale (0 6 * * 5):
+#   - giornaliero = self-healing: se un run fallisce (rete/runner/report in
+#     ritardo) il giorno dopo recupera da solo; costo trascurabile (upsert idempotente).
+#   - settimanale = allineato alla fonte ma fragile: un venerdi fallito = dati
+#     fermi per una settimana intera.
+# Scelto giornaliero per resilienza. Vedi docs/PROGRESS.md (Decisioni).
+on:
+  schedule:
+    # Ogni giorno alle 06:00 UTC.
+    - cron: "0 6 * * *"
+  # Trigger manuale dalla tab Actions (utile per testare il workflow).
+  workflow_dispatch:
+
+concurrency:
+  group: etl-volcanoes
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Ingest GVP volcanoes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (etl + db)
+        run: pip install -e ".[etl,db]"
+      - name: Run ETL volcanoes
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m etl.jobs.volcanoes

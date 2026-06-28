@@ -10,10 +10,10 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 5 — Scheduling (Actions cron) (prossima)
+- **Sezione in corso:** SEZIONE 6 — Frontend base + globo 3D (prossima)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** 2 workflow cron (terremoti orario, vulcani settimanale) + CI su push/PR
-- **Deciso:** ETL vulcani GVP idempotente attivo (feed RSS unico → posizioni + numero vulcano + categoria; `id = gvp:<num>:<week_iso>`; `severity` da categoria attività; `magnitude`/`depth_km` NULL; `geom` dal trigger — verificato 24→24).
+- **Prossimo passo:** push del branch (con ok utente) per attivare le Actions; poi SEZIONE 6
+- **Deciso:** 2 workflow cron attivi (terremoti `0 * * * *` orario, vulcani `0 6 * * *` giornaliero), entrambi con `workflow_dispatch` + concurrency group; `DATABASE_URL` da `secrets.DATABASE_URL` (secret + DB prod → SEZIONE 10); badge status nel README. CI invariata (lint+test su push/PR).
 
 ### Avanzamento sezioni
 | # | Sezione | Stato |
@@ -22,7 +22,7 @@
 | 2 | DB & schema eventi unificato | ✅ fatto |
 | 3 | ETL terremoti (USGS) | ✅ fatto |
 | 4 | ETL vulcani (GVP) | ✅ fatto |
-| 5 | Scheduling (Actions cron) | ⬜ da fare |
+| 5 | Scheduling (Actions cron) | ✅ fatto |
 | 6 | Frontend base + globo 3D | ⬜ da fare |
 | 7 | Layer visualizzazione | ⬜ da fare |
 | 8 | UI command-center | ⬜ da fare |
@@ -64,12 +64,49 @@ sessioni future non la rimettono in discussione.
 | 2026-06-28 | GVP severity | `severity` da **categoria di attività** (titolo): eruzione 0.8 / unrest 0.4 / ignoto 0.5, `+0.1` se "New …", clamp [0,1] → New Eruptive 0.9 · Continuing Eruptive 0.8 · New Unrest 0.5 · Continuing Unrest 0.4 | La categoria è l'unico campo sempre presente e uniforme; l'"Alert Level" nel testo è incoerente (scale 0-5 vs scale-colore variabili). Severity vulcani mai null (presenza nel report = attività rilevante) |
 | 2026-06-28 | GVP idempotenza | Chiave `id = "gvp:" + volcano_number + ":" + week_iso`; `week_iso` = settimana ISO (`YYYY-Www`) della `pubDate` UTC; upsert `ON CONFLICT (id) DO UPDATE` | Cadenza settimanale → un record per vulcano per settimana, niente flood; rilancio non duplica (verificato 24→24). `pubDate` (RFC822) è deterministica, evita di parsare il range testuale "Report for …" |
 | 2026-06-28 | GVP campi | `event_type=volcano`, `source=gvp`, `magnitude`/`depth_km`=**NULL**; `occurred_at`=`pubDate` UTC; `place`=paese; `meta` con num/nome/paese/categoria/settimana/periodo/link/summary (HTML strip) | I vulcani non hanno mag/profondità nello schema unificato; `meta` conserva i campi specifici GVP per ticker/tooltip futuri |
+| 2026-06-28 | Cron terremoti | `etl-earthquakes.yml` → `0 * * * *` (orario, UTC) | Cadenza near-real-time USGS; finestra job 24h + idempotenza `usgs:<code>` → un run orario recupera anche run saltati senza duplicare |
+| 2026-06-28 | Cron vulcani | `etl-volcanoes.yml` → `0 6 * * *` (**giornaliero**, non settimanale `0 6 * * 5`) | Fonte GVP settimanale (report giovedì ~23:00 UTC), ma idempotenza per settimana (`gvp:<num>:<week_iso>`) rende i run infrasettimanali innocui (riaggiornano gli stessi ~24 record). Giornaliero = **self-healing**: un run fallito si recupera il giorno dopo; settimanale = un venerdì fallito lascia i dati fermi una settimana. Costo trascurabile |
+| 2026-06-28 | Trigger workflow | Entrambi i workflow: `schedule` + `workflow_dispatch` (run manuale dalla UI) + `concurrency` group (`etl-earthquakes`/`etl-volcanoes`, `cancel-in-progress: false`) | `workflow_dispatch` per testare a mano; concurrency evita run sovrapposti dello stesso job (l'idempotenza copre comunque eventuali corse) |
+| 2026-06-28 | Secret/DB prod | I workflow leggono `DATABASE_URL` da `secrets.DATABASE_URL`; install ridotto `pip install -e ".[etl,db]"` | Secret e DB di produzione (Render/Railway) → **SEZIONE 10**. Finché manca, i run falliscono allo step di connessione DB (atteso): scheduling/checkout/install dimostrano comunque che le Actions girano. Il job da solo non serve `[api,dev]` |
+| 2026-06-28 | CI invariata | `ci.yml` lasciato com'è (job `backend` ruff+pytest, `frontend` eslint+vitest, su `push`/`pull_request` su `main`) | Già conforme alla SEZIONE 5 (lint+test su ogni push/PR); nessuna modifica necessaria |
 
 ---
 
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-28 — SEZIONE 5: Scheduling (Actions cron) ✅
+- Cosa è stato fatto: due workflow GitHub Actions per far girare le pipeline ETL da
+  sole a frequenze diverse, in modo idempotente; trigger manuale e concurrency group;
+  badge di stato nel README; documentazione del setup secret/DB. CI invariata (già
+  conforme: lint+test su push/PR).
+- File creati/modificati:
+  - `.github/workflows/etl-earthquakes.yml` (cron `0 * * * *` + `workflow_dispatch`,
+    concurrency `etl-earthquakes`, install `.[etl,db]`, `DATABASE_URL` da secret)
+  - `.github/workflows/etl-volcanoes.yml` (cron `0 6 * * *` giornaliero + `workflow_dispatch`,
+    concurrency `etl-volcanoes`, idem install/secret)
+  - `README.md` (badge CI + 2 ETL; sezione "Scheduling" con tabella cadenze, come
+    lanciare `workflow_dispatch`, come impostare il secret `DATABASE_URL`)
+  - `docs/PROGRESS.md` (questo aggiornamento)
+- Scelte prese: vedi tabella Decisioni (cron orario terremoti; **giornaliero** vulcani
+  invece di settimanale per self-healing; `workflow_dispatch` + concurrency; secret
+  `DATABASE_URL`; DB prod rinviato a SEZIONE 10; CI invariata).
+- Verifiche eseguite:
+  - YAML dei 3 workflow validati con `yaml.safe_load` → tutti OK (actionlint non
+    disponibile in locale → revisione manuale di cron/trigger/step)
+  - comandi degli step coerenti coi job reali (`python -m etl.jobs.earthquakes`/`volcanoes`)
+  - `python -m ruff check .` → All checks passed · `python -m pytest` → 36 passed
+- Da fare DOPO il push (con ok utente):
+  - `git push` del branch `main` (commit non ancora pushati) → i 2 workflow compaiono
+    nella tab **Actions**
+  - lancio manuale: Actions → seleziona workflow → **Run workflow** (`workflow_dispatch`)
+  - i run falliranno allo step di connessione DB finché `secrets.DATABASE_URL` non è
+    impostato (atteso, dimostra che scheduling/permessi funzionano)
+  - impostare il secret: **Settings → Secrets and variables → Actions → New repository
+    secret**, nome `DATABASE_URL` (DB di produzione → SEZIONE 10)
+- Problemi aperti / TODO: push del branch in attesa di ok; DB di produzione + secret
+  da configurare in SEZIONE 10.
 
 ### 2026-06-28 — SEZIONE 4: ETL vulcani (GVP) ✅
 - Cosa è stato fatto: pipeline di ingestion settimanale dei vulcani in attività dal
@@ -190,6 +227,9 @@ TEMPLATE voce di log:
 ---
 
 ## ⚠️ Problemi aperti / TODO trasversali
-- [ ] Creare repo remoto su GitHub e fare il primo push.
-- [ ] Scegliere provider deploy backend (Render vs Railway).
-- [ ] Confermare libreria 3D definitiva.
+- [ ] **Push del branch `main`**: remote `origin` collegato
+      (`https://github.com/MarioSambataro/DataPulse.git`) ma commit locali non ancora
+      pushati → i workflow non compaiono su GitHub finché non si fa `git push`.
+- [ ] Scegliere provider deploy backend / DB di produzione (Render vs Railway) →
+      poi impostare il secret `DATABASE_URL` su GitHub (SEZIONE 10).
+- [ ] Confermare libreria 3D definitiva (SEZIONE 6).
