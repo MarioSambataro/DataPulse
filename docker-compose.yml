@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # Immagine con PostGIS preinstallato (estensione abilitata via migrazione Alembic).
+    image: postgis/postgis:16-3.4
     container_name: datapulse-postgres
     restart: unless-stopped
     environment:

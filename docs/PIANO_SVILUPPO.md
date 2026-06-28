@@ -38,7 +38,7 @@ leggi PROGRESS.md  ->  implementa SOLO la sezione X  ->  test/lint locale
 | Layer        | Tecnologia |
 |--------------|-----------|
 | ETL          | Python · Pandas · NumPy · `httpx`/`requests` |
-| DB           | Postgres + estensioni geo · migrazioni (Alembic) |
+| DB           | Postgres + **PostGIS** (geo) · migrazioni (Alembic) |
 | API          | FastAPI · Pydantic v2 |
 | Frontend     | React + TypeScript + Vite |
 | **3D**       | **react-three-fiber + three.js** (globo) + `@react-three/drei` |
@@ -117,7 +117,8 @@ leggi PROGRESS.md  ->  implementa SOLO la sezione X  ->  test/lint locale
 | `source` | enum (`usgs`, `gvp`) | sorgente |
 | `event_type` | enum (`earthquake`, `volcano`) | |
 | `occurred_at` | timestamptz | UTC, indicizzato |
-| `lat`, `lon` | double | indicizzati (geo) |
+| `lat`, `lon` | double | coordinate "grezze" (comode per il frontend) |
+| `geom` | `geography(Point,4326)` | **PostGIS** — punto geografico, indice GiST |
 | `depth_km` | double null | solo terremoti |
 | `magnitude` | double null | terremoti (mag); vulcani null |
 | `severity` | double null | metrica normalizzata 0–1 per il rendering |
@@ -126,15 +127,27 @@ leggi PROGRESS.md  ->  implementa SOLO la sezione X  ->  test/lint locale
 | `meta` | jsonb | campi specifici non normalizzati |
 | `ingested_at` | timestamptz default now() | |
 
+> **Geo: PostGIS (scelto).** Il DB usa l'estensione **PostGIS**. Oltre a `lat`/`lon`
+> grezzi (usati dal frontend), la tabella ha una colonna `geom geography(Point,4326)`
+> con indice spaziale **GiST**, così sono possibili query come "eventi entro N km da
+> un punto" (`ST_DWithin`) e correlazioni spaziali terremoto↔vulcano. L'immagine
+> Docker è `postgis/postgis:16-3.4`.
+
 **Task**
 - Alembic init + prima migrazione con tabella `events`.
-- Indici: `occurred_at DESC`, `(lat, lon)` o estensione geo se disponibile, `event_type`.
-- Decidere se usare PostGIS o lat/lon semplici (consigliato: lat/lon + indice btree per MVP; PostGIS opzionale).
-- Modello Pydantic `Event` condiviso (in `api/`), importabile.
+- Migrazione iniziale: `CREATE EXTENSION IF NOT EXISTS postgis;` (prima della tabella).
+- Colonna `geom geography(Point,4326)`; popolata da `lat`/`lon`
+  (`ST_MakePoint(lon, lat)::geography`), idealmente mantenuta coerente (trigger o
+  in fase di upsert ETL).
+- Indici: `occurred_at DESC` (btree), `geom` (**GiST**), `event_type` (btree).
+- Modello Pydantic `Event` condiviso (in `api/`), importabile. La risposta API
+  espone `lat`/`lon` (non la geometria interna).
 
-**Output atteso:** `alembic upgrade head` crea lo schema; documentazione del mapping in `docs/`.
+**Output atteso:** `alembic upgrade head` abilita PostGIS e crea lo schema;
+documentazione del mapping in `docs/`.
 
-**Checkpoint → `PROGRESS.md`:** schema finale, scelta PostGIS sì/no, strategia indici.
+**Checkpoint → `PROGRESS.md`:** schema finale, conferma PostGIS + colonna `geom`/GiST,
+strategia indici, come si mantiene `geom` sincronizzata con `lat`/`lon`.
 
 ---
 
@@ -265,6 +278,8 @@ vulcani (feed/WFS). Cadenza **settimanale**, formato diverso dai terremoti.
 **Task**
 - `GET /events` con filtri: `event_type`, `min_magnitude`, `start`, `end`,
   bounding box (`min_lat/max_lat/min_lon/max_lon`), `limit/offset`.
+- (PostGIS) filtro opzionale "vicinanza": `near_lat`, `near_lon`, `radius_km`
+  → `ST_DWithin(geom, ...)`. Sfrutta la colonna `geom` e l'indice GiST.
 - `GET /stats` aggregati: conteggi 24h/7g, max magnitudo, n. vulcani attivi.
 - Pydantic response models; CORS per il dominio Vercel.
 - Paginazione e ordinamento per `occurred_at`.

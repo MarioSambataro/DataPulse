@@ -12,7 +12,8 @@
 
 - **Sezione in corso:** SEZIONE 2 — DB & schema eventi unificato (prossima)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** Alembic init + prima migrazione tabella `events` (vedi SEZIONE 2)
+- **Prossimo passo:** Alembic init + prima migrazione tabella `events` con PostGIS (vedi SEZIONE 2)
+- **Deciso:** PostGIS = SÌ (colonna `geom` + indice GiST). Immagine DB già aggiornata a `postgis/postgis:16-3.4`.
 
 ### Avanzamento sezioni
 | # | Sezione | Stato |
@@ -43,7 +44,8 @@ sessioni future non la rimettono in discussione.
 | 2026-06-28 | 3D | Libreria base candidata: `react-three-fiber` | Controllo shader per atmosfera/glow/pulse; da confermare in SEZIONE 6 |
 | 2026-06-28 | Runtime | Python **3.12+** (testato in locale con 3.14), Node **20** in CI | Allineamento con stack moderno; CI fissa 3.12/20 per riproducibilità |
 | 2026-06-28 | Pkg mgr | Python: `pip` + `pyproject.toml` unico (root) con extras `etl`/`api`/`dev`; Web: `npm` | Monorepo: un solo config ruff/pytest; extras installano i layer on-demand |
-| 2026-06-28 | DB | Postgres **16-alpine** via docker-compose, volume `postgres_data` | Versione LTS stabile; PostGIS sì/no da decidere in SEZIONE 2 |
+| 2026-06-28 | DB | Postgres **16** via docker-compose, immagine `postgis/postgis:16-3.4`, volume `postgres_data` | Versione LTS stabile + PostGIS preinstallato |
+| 2026-06-28 | Geo | **PostGIS = SÌ.** Colonna `geom geography(Point,4326)` + indice GiST, oltre a `lat`/`lon` grezzi | Scelta dell'utente. Abilita query spaziali (`ST_DWithin`, correlazioni terremoto↔vulcano); `lat`/`lon` restano per il frontend |
 | 2026-06-28 | CI | 2 job: `backend` (ruff+pytest reali) e `frontend` (eslint+vitest, `--if-present`) | Scheletro che gira verde su repo quasi-vuoto senza rompersi |
 
 ---
