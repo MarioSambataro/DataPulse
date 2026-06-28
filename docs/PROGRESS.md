@@ -10,10 +10,10 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 4 — ETL vulcani (GVP) (prossima)
+- **Sezione in corso:** SEZIONE 5 — Scheduling (Actions cron) (prossima)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** job ingestion settimanale Smithsonian GVP → stesso schema `events`
-- **Deciso:** ETL terremoti USGS idempotente attivo (finestra 24h, `id = usgs:<code>`, upsert `ON CONFLICT`); `severity = clamp(mag/10)`; `geom` popolata dal trigger DB (verificato).
+- **Prossimo passo:** 2 workflow cron (terremoti orario, vulcani settimanale) + CI su push/PR
+- **Deciso:** ETL vulcani GVP idempotente attivo (feed RSS unico → posizioni + numero vulcano + categoria; `id = gvp:<num>:<week_iso>`; `severity` da categoria attività; `magnitude`/`depth_km` NULL; `geom` dal trigger — verificato 24→24).
 
 ### Avanzamento sezioni
 | # | Sezione | Stato |
@@ -21,7 +21,7 @@
 | 1 | Setup repo & scaffold | ✅ fatto |
 | 2 | DB & schema eventi unificato | ✅ fatto |
 | 3 | ETL terremoti (USGS) | ✅ fatto |
-| 4 | ETL vulcani (GVP) | ⬜ da fare |
+| 4 | ETL vulcani (GVP) | ✅ fatto |
 | 5 | Scheduling (Actions cron) | ⬜ da fare |
 | 6 | Frontend base + globo 3D | ⬜ da fare |
 | 7 | Layer visualizzazione | ⬜ da fare |
@@ -59,12 +59,44 @@ sessioni future non la rimettono in discussione.
 | 2026-06-28 | ETL/geom | L'upsert scrive solo le colonne dati (no `geom`); il trigger DB ricalcola `geom` da `lat`/`lon` | Rispetta la decisione "single source of truth"; ETL non conosce PostGIS (verificato: 0 `geom` NULL) |
 | 2026-06-28 | ETL HTTP | `httpx` con timeout 30s + retry (3 tentativi, backoff esponenziale) solo su 429/5xx; 4xx falliscono subito | Resilienza ai transitori senza martellare su errori non recuperabili |
 | 2026-06-28 | Logging | Logging strutturato **JSON-line** (`etl.logging_setup`), campi `extra` inline | Output grepabile/ingeribile; un job CLI scrive eventi tracciabili (`job_start`/`usgs_fetch_ok`/`job_done`) |
+| 2026-06-28 | GVP fonte | **Un solo feed**: Weekly Volcanic Activity Report RSS `https://volcano.si.edu/news/WeeklyVolcanoRSS.xml` | Ogni `<item>` contiene già numero vulcano (`<guid>…#vn_<num>`), posizione (`<georss:point>` = "lat lon") e categoria (nel `<title>`): niente WFS/dataset separato per le coordinate |
+| 2026-06-28 | GVP encoding | Il client ritorna **bytes** (non `resp.text`); il parser XML rispetta la dichiarazione `ISO-8859-1` del feed | Evita mojibake sugli accenti (es. "Nevado de Longaví", "Geología") |
+| 2026-06-28 | GVP severity | `severity` da **categoria di attività** (titolo): eruzione 0.8 / unrest 0.4 / ignoto 0.5, `+0.1` se "New …", clamp [0,1] → New Eruptive 0.9 · Continuing Eruptive 0.8 · New Unrest 0.5 · Continuing Unrest 0.4 | La categoria è l'unico campo sempre presente e uniforme; l'"Alert Level" nel testo è incoerente (scale 0-5 vs scale-colore variabili). Severity vulcani mai null (presenza nel report = attività rilevante) |
+| 2026-06-28 | GVP idempotenza | Chiave `id = "gvp:" + volcano_number + ":" + week_iso`; `week_iso` = settimana ISO (`YYYY-Www`) della `pubDate` UTC; upsert `ON CONFLICT (id) DO UPDATE` | Cadenza settimanale → un record per vulcano per settimana, niente flood; rilancio non duplica (verificato 24→24). `pubDate` (RFC822) è deterministica, evita di parsare il range testuale "Report for …" |
+| 2026-06-28 | GVP campi | `event_type=volcano`, `source=gvp`, `magnitude`/`depth_km`=**NULL**; `occurred_at`=`pubDate` UTC; `place`=paese; `meta` con num/nome/paese/categoria/settimana/periodo/link/summary (HTML strip) | I vulcani non hanno mag/profondità nello schema unificato; `meta` conserva i campi specifici GVP per ticker/tooltip futuri |
 
 ---
 
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-28 — SEZIONE 4: ETL vulcani (GVP) ✅
+- Cosa è stato fatto: pipeline di ingestion settimanale dei vulcani in attività dal
+  Weekly Volcanic Activity Report dello Smithsonian/USGS (RSS → normalizzazione
+  Pandas → upsert in `events`), idempotente per settimana, con retry/timeout HTTP,
+  logging strutturato e test offline su fixture ISO-8859-1.
+- File creati/modificati:
+  - `etl/config.py` (+ costante `GVP_WEEKLY_RSS_URL`)
+  - `etl/gvp.py` (client httpx, ritorna bytes, retry/backoff su 429/5xx, timeout)
+  - `etl/normalize.py` (+ `severity_from_activity`, `normalize_weekly_report`,
+    helper `_iso_week`/`_georss_point`/`_strip_html`; riusa `EVENT_COLUMNS`/`to_records`)
+  - `etl/jobs/volcanoes.py` (orchestrazione + CLI `--dry-run`)
+  - `etl/tests/fixtures/gvp_weekly_sample.xml` (5 item: 3 validi + 1 senza point +
+    1 senza numero vulcano, da scartare; codificato ISO-8859-1 con accenti reali)
+  - `etl/tests/test_normalize_gvp.py` (13 test: drop, id/settimana, schema, mag/depth
+    null, ordine lat/lon, UTC, mapping severity, parsing titolo/place, decoding
+    ISO-8859-1 + HTML strip, dedup per settimana)
+- Scelte prese: vedi tabella Decisioni (feed RSS unico, encoding bytes, severity da
+  categoria, idempotenza `gvp:<num>:<week_iso>`, campi volcano).
+- Verifiche eseguite:
+  - `python -m etl.jobs.volcanoes` → fetch 24 item, `job_done events=24`
+  - rilancio → ancora 24 righe `source='gvp'` (idempotenza OK, 24→24)
+  - DB: `geom_null=0` (trigger popola `geom`), `magnitude`/`depth_km` tutti NULL,
+    `severity` mai null; `ST_AsText(geom)` coincide con `lat`/`lon`
+    (es. Ambae `POINT(167.835 -15.389)`), severity coerente (New Eruptive=0.90)
+  - `ruff check .` → All checks passed · `python -m pytest` → 36 passed
+- Problemi aperti / TODO: nessuno bloccante.
 
 ### 2026-06-28 — SEZIONE 3: ETL terremoti (USGS) ✅
 - Cosa è stato fatto: pipeline di ingestion idempotente dei terremoti USGS

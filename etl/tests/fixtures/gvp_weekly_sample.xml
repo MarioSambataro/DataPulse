@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<rss version="2.0"
+      xmlns:georss="http://www.georss.org/georss"
+      xmlns:atom="https://www.w3.org/2005/Atom">
+	<channel>
+		<title>Smithsonian / USGS Weekly Volcanic Activity Report</title>
+		<link>https://volcano.si.edu/reports_weekly.cfm</link>
+		<description>Weekly Volcanic Activity Report (fixture ridotta per i test offline).</description>
+		<language>en-us</language>
+		<pubDate>Thu, 11 Jun 2026 03:42:26 -0500</pubDate>
+
+<item>
+<title>Ambae (Vanuatu) - Report for 4 June-10 June 2026 - New Eruptive Activity</title>
+<description>
+&lt;p&gt;The Wellington Volcanic Ash Advisory Center (VAAC) reported that emissions of ash-and-gas plumes from Ambae were identified during 4-5 June. The Alert Level remained at 3 (on a scale of 0-5).&lt;/p&gt;
+&lt;p&gt;Sources: Vanuatu Meteorology and Geohazards Department (VMGD)&lt;/p&gt;
+</description>
+<link>https://volcano.si.edu/reports_weekly.cfm</link>
+<guid isPermaLink="true">https://volcano.si.edu/reports_weekly.cfm#vn_257030</guid>
+<pubDate>Thu, 11 Jun 2026 03:42:26 -0400</pubDate>
+<georss:point>-15.3890 167.8350</georss:point>
+</item>
+
+<item>
+<title>Nevado de Longaví (Chile) - Report for 4 June-10 June 2026 - New Unrest</title>
+<description>
+&lt;p&gt;The Servicio Nacional de Geología y Minería (SERNAGEOMIN) stated that seismicity at Nevado de Longaví gradually declined. The Alert Level remained at Yellow (the second lowest level on a four-color scale).&lt;/p&gt;
+&lt;p&gt;Sources: SERNAGEOMIN, SENAPRED&lt;/p&gt;
+</description>
+<link>https://volcano.si.edu/reports_weekly.cfm</link>
+<guid isPermaLink="true">https://volcano.si.edu/reports_weekly.cfm#vn_357063</guid>
+<pubDate>Thu, 11 Jun 2026 03:42:26 -0400</pubDate>
+<georss:point>-36.1959 -71.1641</georss:point>
+</item>
+
+<item>
+<title>Aira (Japan) - Report for 4 June-10 June 2026 - Continuing Eruptive Activity</title>
+<description>
+&lt;p&gt;The Japan Meteorological Agency (JMA) reported ongoing eruptive activity at Sakurajima during 1-8 June. The Alert Level remained at 3 (on a 5-level scale).&lt;/p&gt;
+&lt;p&gt;Source: Japan Meteorological Agency (JMA)&lt;/p&gt;
+</description>
+<link>https://volcano.si.edu/reports_weekly.cfm</link>
+<guid isPermaLink="true">https://volcano.si.edu/reports_weekly.cfm#vn_282080</guid>
+<pubDate>Thu, 11 Jun 2026 03:42:26 -0400</pubDate>
+<georss:point>31.5772 130.6589</georss:point>
+</item>
+
+<item>
+<title>Senza Coordinate (Testland) - Report for 4 June-10 June 2026 - Continuing Unrest</title>
+<description>&lt;p&gt;Item privo di georss:point: deve essere scartato.&lt;/p&gt;</description>
+<link>https://volcano.si.edu/reports_weekly.cfm</link>
+<guid isPermaLink="true">https://volcano.si.edu/reports_weekly.cfm#vn_999999</guid>
+<pubDate>Thu, 11 Jun 2026 03:42:26 -0400</pubDate>
+</item>
+
+<item>
+<title>Senza Numero (Testland) - Report for 4 June-10 June 2026 - New Unrest</title>
+<description>&lt;p&gt;Item privo di numero vulcano nel guid: deve essere scartato.&lt;/p&gt;</description>
+<link>https://volcano.si.edu/reports_weekly.cfm</link>
+<guid isPermaLink="true">https://volcano.si.edu/reports_weekly.cfm#no_number_here</guid>
+<pubDate>Thu, 11 Jun 2026 03:42:26 -0400</pubDate>
+<georss:point>0.0 0.0</georss:point>
+</item>
+
+	</channel>
+</rss>

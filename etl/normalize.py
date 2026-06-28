@@ -14,7 +14,10 @@ Punti chiave:
 from __future__ import annotations
 
 import math
+import re
+import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import pandas as pd
@@ -136,3 +139,170 @@ def to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
                 clean[key] = value
         records.append(clean)
     return records
+
+
+# ---------------------------------------------------------------------------
+# GVP — Weekly Volcanic Activity Report (RSS) -> schema unificato `events`
+# ---------------------------------------------------------------------------
+#
+# Ogni <item> del feed RSS porta tutto il necessario:
+# - <guid> `...#vn_<number>`  -> numero vulcano (chiave idempotenza)
+# - <georss:point> "lat lon"  -> coordinate (ordine GeoRSS: Y=lat, X=lon!)
+# - <title> "<nome> (<paese>) - Report for <periodo> - <categoria attività>"
+# - <pubDate> RFC822          -> istante UTC del report + settimana ISO
+#
+# A differenza dei terremoti i vulcani NON hanno magnitudo/profondità
+# (event_type=volcano, source=gvp, magnitude=null, depth_km=null).
+
+_GEORSS_NS = {"georss": "http://www.georss.org/georss"}
+
+# `<nome> (<paese>) - Report for <periodo> - <categoria>`.
+_GVP_TITLE_RE = re.compile(
+    r"^(?P<name>.*?) \((?P<country>.*?)\) - Report for (?P<period>.*?) - (?P<category>.*)$"
+)
+_VNUM_RE = re.compile(r"vn_(\d+)")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+# Sottoinsieme `meta` (jsonb) conservato per riferimento (tooltip/ticker futuri).
+_GVP_META_KEYS = (
+    "volcano_number",
+    "volcano_name",
+    "country",
+    "category",
+    "week_iso",
+    "report_period",
+    "link",
+    "summary",
+)
+
+
+def severity_from_activity(category: str | None) -> float:
+    """Severity 0..1 derivata dalla **categoria di attività** del weekly report.
+
+    Scelta (SEZIONE 4): la categoria nel titolo (es. "New Eruptive Activity",
+    "Continuing Eruptive Activity", "New Unrest") è l'unico campo *sempre presente
+    e uniforme*; l'"Alert Level" nel testo libero della descrizione è invece
+    incoerente (scale 0-5 numeriche, scale-colore con numero di colori variabile)
+    e quindi non affidabile come segnale strutturato.
+
+    Mappatura componibile (intensità + novità), così è robusta anche a varianti
+    non viste ("Ongoing Activity", ecc.):
+    - base intensità: eruzione -> 0.8, unrest -> 0.4, altro/ignoto -> 0.5
+    - bonus novità:  "New ..." -> +0.1 (l'insorgenza è più notiziabile)
+    - clamp finale in [0,1].
+
+    Esiti: New Eruptive 0.9 · Continuing Eruptive 0.8 · New Unrest 0.5 ·
+    Continuing Unrest 0.4. La severity dei vulcani non è mai null (la presenza nel
+    report implica attività rilevante).
+    """
+    text = (category or "").lower()
+    if "erupt" in text:
+        base = 0.8
+    elif "unrest" in text:
+        base = 0.4
+    else:
+        base = 0.5
+    if text.startswith("new"):
+        base += 0.1
+    return max(0.0, min(1.0, base))
+
+
+def _strip_html(text: str | None) -> str | None:
+    if not text:
+        return None
+    cleaned = _HTML_TAG_RE.sub(" ", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or None
+
+
+def _iso_week(dt: datetime) -> str:
+    """`YYYY-Www` (settimana ISO) dell'istante UTC dato."""
+    year, week, _ = dt.astimezone(UTC).isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def _georss_point(item: ET.Element) -> tuple[float | None, float | None]:
+    node = item.find("georss:point", _GEORSS_NS)
+    if node is None or not (node.text or "").strip():
+        return None, None
+    parts = node.text.split()
+    if len(parts) != 2:
+        return None, None
+    try:
+        lat, lon = float(parts[0]), float(parts[1])  # GeoRSS: "lat lon"
+    except ValueError:
+        return None, None
+    return lat, lon
+
+
+def normalize_weekly_report(xml_bytes: bytes) -> pd.DataFrame:
+    """Da feed RSS GVP (bytes XML) a DataFrame con le colonne di `events`.
+
+    Gli item senza numero vulcano o senza coordinate valide vengono scartati (non
+    si può costruire un `id` o un punto): il chiamante logga le righe perse
+    confrontando le lunghezze. Idempotenza per settimana: `id = gvp:<num>:<week>`.
+    """
+    root = ET.fromstring(xml_bytes)
+    channel = root.find("channel")
+    items = channel.findall("item") if channel is not None else []
+
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        guid = item.findtext("guid") or ""
+        vmatch = _VNUM_RE.search(guid)
+        lat, lon = _georss_point(item)
+        pub = item.findtext("pubDate")
+        if vmatch is None or lat is None or lon is None or not pub:
+            continue
+
+        volcano_number = vmatch.group(1)
+        occurred_at = parsedate_to_datetime(pub).astimezone(UTC)
+        week_iso = _iso_week(occurred_at)
+
+        raw_title = (item.findtext("title") or "").strip()
+        tmatch = _GVP_TITLE_RE.match(raw_title)
+        if tmatch:
+            name = tmatch.group("name").strip()
+            country = tmatch.group("country").strip()
+            period = tmatch.group("period").strip()
+            category = tmatch.group("category").strip()
+            title = f"{name} — {category}"
+        else:
+            name, country, period, category = raw_title or None, None, None, None
+            title = raw_title
+
+        meta = {
+            "volcano_number": volcano_number,
+            "volcano_name": name,
+            "country": country,
+            "category": category,
+            "week_iso": week_iso,
+            "report_period": period,
+            "link": item.findtext("link"),
+            "summary": _strip_html(item.findtext("description")),
+        }
+        meta = {k: meta[k] for k in _GVP_META_KEYS if meta.get(k) is not None}
+
+        rows.append(
+            {
+                "id": f"gvp:{volcano_number}:{week_iso}",
+                "source": "gvp",
+                "event_type": "volcano",
+                "occurred_at": occurred_at,
+                "lat": lat,
+                "lon": lon,
+                "depth_km": None,  # i vulcani non hanno profondità nello schema
+                "magnitude": None,  # né magnitudo
+                "severity": severity_from_activity(category),
+                "title": title,
+                "place": country,
+                "meta": meta,
+            }
+        )
+
+    df = pd.DataFrame(rows, columns=list(EVENT_COLUMNS))
+    # Stesso vulcano due volte nella stessa settimana -> tieni l'ultima occorrenza
+    # così l'upsert non riceve due righe con lo stesso id.
+    if not df.empty:
+        df = df.drop_duplicates(subset="id", keep="last").reset_index(drop=True)
+    return df

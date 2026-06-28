@@ -15,6 +15,12 @@ from dotenv import load_dotenv
 # Endpoint pubblico della USGS Earthquake API (GeoJSON, niente API key).
 USGS_QUERY_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query"
 
+# Smithsonian / USGS Weekly Volcanic Activity Report (RSS, aggiornato ogni giovedì).
+# Scelta SEZIONE 4: questo unico feed basta a popolare i vulcani perché ogni <item>
+# include sia il numero vulcano (nel <guid> come `vn_<num>`) sia la posizione
+# (`<georss:point>` = "lat lon") — niente WFS/dataset separato per le coordinate.
+GVP_WEEKLY_RSS_URL = "https://volcano.si.edu/news/WeeklyVolcanoRSS.xml"
+
 # Finestra temporale di default del job terremoti (in ore). Decisione SEZIONE 3:
 # 24h copre abbondantemente la cadenza oraria dello scheduling (SEZIONE 5), con
 # margine per recuperare run saltati. Parametrizzabile via CLI (--hours).
