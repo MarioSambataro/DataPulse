@@ -14,6 +14,23 @@ jobs:
   backend:
     name: Backend (ruff + pytest)
     runs-on: ubuntu-latest
+    # Postgres+PostGIS reale: i test API esercitano davvero ST_DWithin/trigger geom.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: datapulse
+          POSTGRES_PASSWORD: datapulse
+          POSTGRES_DB: datapulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U datapulse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://datapulse:datapulse@localhost:5432/datapulse
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,6 +41,8 @@ jobs:
         run: pip install -e ".[etl,api,db,dev]"
       - name: Lint (ruff)
         run: ruff check .
+      - name: Migrate (alembic)
+        run: alembic -c db/alembic.ini upgrade head
       - name: Test (pytest)
         run: pytest
 

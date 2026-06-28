@@ -10,9 +10,9 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 9 — API FastAPI completa (prossima)
+- **Sezione in corso:** SEZIONE 9 ✅ fatta → **prossima: SEZIONE 6** (Frontend base + globo 3D)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** SEZIONE 9 (API) anticipata prima del frontend, come da ordine consigliato del piano (1→2→3→4→5 → **9** → 6→7→8 → 10→11), così il FE avrà dati veri da consumare. Branch già pushato (commit `cc75dc8`); secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
+- **Prossimo passo:** ripreso l'ordine del piano dopo l'anticipo dell'API: **6 → 7 → 8 → 10 → 11**. Ora il FE (SEZIONE 6+) ha un'API reale da consumare (`/events`, `/stats`). Commit doc locale `c33f5fe` + commit SEZIONE 9 da pushare (attendere ok). Secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
 - **Deciso:** 2 workflow cron attivi (terremoti `0 * * * *` orario, vulcani `0 6 * * *` giornaliero), entrambi con `workflow_dispatch` + concurrency group; `DATABASE_URL` da `secrets.DATABASE_URL` (secret + DB prod → SEZIONE 10); badge status nel README. CI invariata (lint+test su push/PR).
 
 ### Avanzamento sezioni
@@ -26,7 +26,7 @@
 | 6 | Frontend base + globo 3D | ⬜ da fare |
 | 7 | Layer visualizzazione | ⬜ da fare |
 | 8 | UI command-center | ⬜ da fare |
-| 9 | API FastAPI completa | ⬜ da fare |
+| 9 | API FastAPI completa | ✅ fatto |
 | 10 | Dockerizzazione & Deploy | ⬜ da fare |
 | 11 | README & rifinitura | ⬜ da fare |
 
@@ -69,12 +69,62 @@ sessioni future non la rimettono in discussione.
 | 2026-06-28 | Trigger workflow | Entrambi i workflow: `schedule` + `workflow_dispatch` (run manuale dalla UI) + `concurrency` group (`etl-earthquakes`/`etl-volcanoes`, `cancel-in-progress: false`) | `workflow_dispatch` per testare a mano; concurrency evita run sovrapposti dello stesso job (l'idempotenza copre comunque eventuali corse) |
 | 2026-06-28 | Secret/DB prod | I workflow leggono `DATABASE_URL` da `secrets.DATABASE_URL`; install ridotto `pip install -e ".[etl,db]"` | Secret e DB di produzione (Render/Railway) → **SEZIONE 10**. Finché manca, i run falliscono allo step di connessione DB (atteso): scheduling/checkout/install dimostrano comunque che le Actions girano. Il job da solo non serve `[api,dev]` |
 | 2026-06-28 | CI invariata | `ci.yml` lasciato com'è (job `backend` ruff+pytest, `frontend` eslint+vitest, su `push`/`pull_request` su `main`) | Già conforme alla SEZIONE 5 (lint+test su ogni push/PR); nessuna modifica necessaria |
+| 2026-06-28 | API engine/session | `api/db.py`: engine **condiviso** (lazy, cache di processo) che riusa `etl.db.get_engine` → `etl.config.database_url` (normalizzazione psycopg v3). `sessionmaker` + dependency FastAPI `get_session` (una `Session` per richiesta) | Un solo punto di verità per driver/URL (no duplicazione); l'API ha bisogno di `Session` ORM (l'ETL no), quindi sessionmaker dedicato sopra l'engine condiviso |
+| 2026-06-28 | API risposta | `GET /events` ritorna **envelope** `EventPage {items, total, limit, offset}` (non lista nuda); `total` = match dei filtri ignorando limit/offset | Il FE command-center (SEZIONE 8) ha bisogno del totale per paginazione/contatori senza una seconda chiamata |
+| 2026-06-28 | API filtri | `event_type`, `min_magnitude` (esclude record senza mag = vulcani), `start`/`end` (su `occurred_at`), bbox `min/max_lat`+`min/max_lon` (lati indipendenti), `near_lat/near_lon/radius_km`, `order` (asc/desc), `limit` (≤1000, default 100)/`offset`. Ordinamento `occurred_at` (default DESC), `id` come tiebreaker | Tiebreaker `id` → paginazione stabile; bbox a lati indipendenti = più flessibile di un box rigido; validazione coerenza (422): near tutti-e-tre-o-nessuno, `min_lat≤max_lat`, `min_lon≤max_lon` |
+| 2026-06-28 | API vicinanza | `ST_DWithin(geom, ST_SetSRID(ST_MakePoint(lon,lat),4326)::geography, radius_km*1000)` su `geography` (metri) → sfrutta l'indice GiST | PostGIS lato query; l'API non espone mai `geom`. Verificato su dati reali: near California 100km→11, 10km→4 eventi |
+| 2026-06-28 | /stats semantica | Finestre **rolling** rispetto a `now()` del DB (`generated_at`, UTC) su `occurred_at`: `events_24h`/`events_7d` (qualsiasi tipo), `earthquakes_24h`, `max_magnitude_24h` (max mag terremoti 24h, null se 0), `active_volcanoes_7d` = `count(distinct meta->>'volcano_number')` tra i vulcani negli ultimi 7g | "Vulcani attivi" = numeri GVP distinti con attività recente (GVP è settimanale → finestra 7g). Chiave meta reale = `volcano_number` (non `num`) |
+| 2026-06-28 | API CORS | `CORSMiddleware` con `allow_origins` da env `CORS_ALLOW_ORIGINS` (origin separati da virgola), default dev `http://localhost:5173` (Vite). `allow_methods=["GET"]` | Configurabile senza toccare il codice; l'origin **Vercel** di produzione si aggiunge valorizzando la env sul backend in **SEZIONE 10** (non inventato qui) |
+| 2026-06-28 | Test API | Postgres+PostGIS **reale** (scelta utente): in CI un `service postgis/postgis:16-3.4` + step `alembic upgrade head`; in locale il docker già attivo. Isolamento per test: connessione+transazione dedicata, `DELETE FROM events` (visibile solo in-transaction) → DB vuoto deterministico, **rollback** a fine test (dati reali locali intatti). `get_session` sovrascritta sulla sessione del test | Esercita davvero `ST_DWithin`/trigger `geom`/enum nativi; il rollback non sporca né dipende dai dati locali. `httpx` (per `TestClient`) già presente nell'extra `[etl]` → nessuna nuova dipendenza |
 
 ---
 
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-28 — SEZIONE 9: API FastAPI completa ✅
+- Cosa è stato fatto: API FastAPI che serve gli eventi unificati con filtri spaziali/
+  temporali, paginazione e aggregati; engine/session condivisi (riuso normalizzazione
+  URL dell'ETL), CORS configurabile, OpenAPI su `/docs`; test end-to-end su Postgres
+  reale + servizio Postgres aggiunto alla CI. Anticipata prima del frontend.
+- File creati/modificati:
+  - `api/main.py` (app FastAPI, `GET /health` `/events` `/stats`, CORS, validazione 422)
+  - `api/db.py` (engine condiviso lazy via `etl.db.get_engine`, `sessionmaker`,
+    dependency `get_session`)
+  - `api/config.py` (`cors_origins()` da env `CORS_ALLOW_ORIGINS`, default `:5173`)
+  - `api/queries.py` (costruzione filtri/ordinamento, `ST_DWithin`, `list_events`,
+    `compute_stats`)
+  - `api/schemas.py` (+ `EventPage` envelope, + `Stats`)
+  - `api/tests/conftest.py` (fixture Postgres reale: transazione+DELETE+rollback,
+    override `get_session`, `TestClient`)
+  - `api/tests/test_api.py` (16 test: envelope/no-geom, trigger geom, filtri tipo/mag/
+    tempo/bbox, near PostGIS, 422 coerenza, ordinamento/paginazione, semantica /stats)
+  - `.github/workflows/ci.yml` (job `backend`: + `service` postgis, env `DATABASE_URL`,
+    step `alembic upgrade head` prima di pytest)
+  - `.env.example` (+ `CORS_ALLOW_ORIGINS`)
+  - `docs/PROGRESS.md` (questo aggiornamento)
+- Scelte prese: vedi tabella Decisioni (engine/session in `api/db.py` che riusa l'ETL;
+  envelope `EventPage`; filtri+validazione; vicinanza `ST_DWithin` su geography;
+  semantica /stats rolling 24h/7g + `volcano_number`; CORS da env, Vercel → SEZIONE 10;
+  test su Postgres reale + service in CI).
+- Verifiche eseguite:
+  - `docker compose up -d postgres` + `alembic -c db/alembic.ini upgrade head` OK
+  - `python -m ruff check .` → All checks passed
+  - `python -m pytest` → **52 passed** (36 preesistenti + 16 nuovi API)
+  - `uvicorn api.main:app` su :8000, `/docs` esposto; chiamate reali contro i 237
+    eventi (213 terremoti + 24 vulcani):
+    - `/stats` → `events_24h=202, events_7d=213, earthquakes_24h=202,
+      max_magnitude_24h=5.8, active_volcanoes_7d=0` (vulcani GVP del 2026-06-11,
+      fuori finestra 7g → 0 corretto)
+    - `/events?limit=2` → envelope `total=237`, item senza `geom`
+    - `/events?event_type=earthquake&min_magnitude=4` → total 21
+    - `/events?event_type=volcano` → total 24
+    - vicinanza reale: near California (35.3,-117.8) r=100km→11, r=10km→4; params
+      parziali → HTTP 422
+- Problemi aperti / TODO: push del branch in attesa di ok (commit doc `c33f5fe` +
+  commit SEZIONE 9). Nota: la finestra `active_volcanoes_7d` resterà 0 finché un run
+  ETL vulcani non popola un report con `pubDate` negli ultimi 7 giorni.
 
 ### 2026-06-28 — SEZIONE 5: Scheduling (Actions cron) ✅
 - Cosa è stato fatto: due workflow GitHub Actions per far girare le pipeline ETL da
@@ -232,4 +282,8 @@ TEMPLATE voce di log:
       pushati → i workflow non compaiono su GitHub finché non si fa `git push`.
 - [ ] Scegliere provider deploy backend / DB di produzione (Render vs Railway) →
       poi impostare il secret `DATABASE_URL` su GitHub (SEZIONE 10).
+- [ ] **CORS prod**: aggiungere l'origin Vercel valorizzando `CORS_ALLOW_ORIGINS`
+      sul backend in SEZIONE 10 (env, non hard-coded).
 - [ ] Confermare libreria 3D definitiva (SEZIONE 6).
+- [ ] Il FE (SEZIONE 6+) consuma `GET /events` (envelope `EventPage`) e `GET /stats`;
+      `VITE_API_URL` → backend (default dev `http://localhost:8000`).
