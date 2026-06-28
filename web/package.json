@@ -1,0 +1,19 @@
+{
+  "name": "datapulse-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "DataPulse frontend — globo 3D command-center (scaffold; Vite+R3F nella sezione 6)",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.7.0",
+    "eslint": "^9.7.0",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0"
+  }
+}

@@ -10,14 +10,14 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 1 — Setup repo & scaffold (non iniziata)
+- **Sezione in corso:** SEZIONE 2 — DB & schema eventi unificato (prossima)
 - **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** creare struttura cartelle + docker-compose Postgres
+- **Prossimo passo:** Alembic init + prima migrazione tabella `events` (vedi SEZIONE 2)
 
 ### Avanzamento sezioni
 | # | Sezione | Stato |
 |---|---------|-------|
-| 1 | Setup repo & scaffold | ⬜ da fare |
+| 1 | Setup repo & scaffold | ✅ fatto |
 | 2 | DB & schema eventi unificato | ⬜ da fare |
 | 3 | ETL terremoti (USGS) | ⬜ da fare |
 | 4 | ETL vulcani (GVP) | ⬜ da fare |
@@ -41,13 +41,37 @@ sessioni future non la rimettono in discussione.
 | Data | Ambito | Decisione | Perché |
 |------|--------|-----------|--------|
 | 2026-06-28 | 3D | Libreria base candidata: `react-three-fiber` | Controllo shader per atmosfera/glow/pulse; da confermare in SEZIONE 6 |
-| | | | |
+| 2026-06-28 | Runtime | Python **3.12+** (testato in locale con 3.14), Node **20** in CI | Allineamento con stack moderno; CI fissa 3.12/20 per riproducibilità |
+| 2026-06-28 | Pkg mgr | Python: `pip` + `pyproject.toml` unico (root) con extras `etl`/`api`/`dev`; Web: `npm` | Monorepo: un solo config ruff/pytest; extras installano i layer on-demand |
+| 2026-06-28 | DB | Postgres **16-alpine** via docker-compose, volume `postgres_data` | Versione LTS stabile; PostGIS sì/no da decidere in SEZIONE 2 |
+| 2026-06-28 | CI | 2 job: `backend` (ruff+pytest reali) e `frontend` (eslint+vitest, `--if-present`) | Scheletro che gira verde su repo quasi-vuoto senza rompersi |
 
 ---
 
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-28 — SEZIONE 1: Setup repo & scaffold ✅
+- Cosa è stato fatto: creata struttura monorepo, docker-compose Postgres,
+  CI scheletro, config Python/Web; lint+test verdi in locale.
+- File creati:
+  - `pyproject.toml` (root: deps extras + config ruff/pytest)
+  - `docker-compose.yml` (servizio `postgres` + placeholder `api`/`web`)
+  - `.env.example` (`DATABASE_URL`, `VITE_API_URL`, credenziali Postgres)
+  - `.github/workflows/ci.yml` (job backend + frontend)
+  - `etl/` (`__init__`, `jobs/`, `tests/test_smoke.py`)
+  - `api/` (`__init__`, `tests/test_smoke.py`)
+  - `db/README.md` (placeholder per SEZIONE 2)
+  - `web/` (package.json, eslint.config.js, tsconfig.json, `src/`, smoke test)
+- Scelte prese: vedi tabella Decisioni (runtime, pkg manager, Postgres 16, CI).
+- Verifiche eseguite:
+  - `ruff check .` → All checks passed
+  - `pytest` → 2 passed
+  - `cd web && npm install && npm run lint && npm run test` → eslint pulito, 1 test passed
+  - `docker compose config` → OK
+- Problemi aperti / TODO: nessuno bloccante. Restano i TODO trasversali (remote
+  GitHub, provider deploy, libreria 3D definitiva).
 
 ### 2026-06-28 — Kickoff
 - Creato piano sezionato (`PIANO_SVILUPPO.md`) + questo file.

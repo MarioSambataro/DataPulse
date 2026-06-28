@@ -1,0 +1,39 @@
+[project]
+name = "datapulse"
+version = "0.1.0"
+description = "DataPulse — console di monitoraggio geo-tettonico (ETL + API)"
+requires-python = ">=3.12"
+dependencies = []
+
+# Le dipendenze runtime vere arrivano nelle sezioni 2-3-4-9.
+# Per ora gruppi opzionali per installare on-demand i singoli layer.
+[project.optional-dependencies]
+etl = [
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "httpx>=0.27",
+]
+api = [
+    "fastapi>=0.111",
+    "pydantic>=2.7",
+    "uvicorn[standard]>=0.30",
+]
+dev = [
+    "ruff>=0.5",
+    "pytest>=8.2",
+]
+
+[tool.setuptools.packages.find]
+include = ["etl*", "api*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["etl", "api"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["etl", "api"]
+addopts = "-q"
