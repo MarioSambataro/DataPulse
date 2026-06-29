@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import { palette } from "../theme";
 import { Atmosphere } from "./Atmosphere";
+import { EventsLayer } from "./EventsLayer";
 import { Globe } from "./Globe";
 
 const GLOBE_RADIUS = 1.6;
@@ -31,6 +32,8 @@ export function Scene() {
       <Stars radius={80} depth={50} count={6000} factor={4} saturation={0} fade speed={0.6} />
 
       <Globe radius={GLOBE_RADIUS} />
+      {/* Layer dati: epicentri sismici (instanced ping) + marker vulcani. */}
+      <EventsLayer radius={GLOBE_RADIUS} />
       <Atmosphere radius={GLOBE_RADIUS * 1.06} color={palette.cyan} power={3.2} intensity={1.1} />
       {/* Secondo strato di alone più caldo e stretto vicino alla superficie. */}
       <Atmosphere radius={GLOBE_RADIUS * 1.02} color={palette.amber} power={5.0} intensity={0.5} />

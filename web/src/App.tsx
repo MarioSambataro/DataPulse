@@ -1,5 +1,31 @@
+import { DetailPanel } from "./components/DetailPanel";
+import { useEventsLoader } from "./hooks/useEventsLoader";
 import { Scene } from "./three/Scene";
 import { useStore } from "./store/useStore";
+
+/** Indicatore di stato del caricamento eventi (GET /events). */
+function DataStatus() {
+  const { status, error, count } = useEventsLoader();
+  if (status === "loading") {
+    return (
+      <span className="data-status loading">
+        <span className="dot" /> ACQUIRING FEED…
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="data-status error" title={error ?? undefined}>
+        ⚠ FEED OFFLINE
+      </span>
+    );
+  }
+  return (
+    <span className="data-status ready">
+      <span className="dot" /> {count} EVENTS TRACKED
+    </span>
+  );
+}
 
 /** HUD tattico minimale. Pannelli dati (ticker/stat/filtri) → SEZIONE 8. */
 function Hud() {
@@ -23,7 +49,7 @@ function Hud() {
           <span className="brand-sub">GEO-TECTONIC COMMAND CENTER</span>
         </div>
         <div className="hud-status">
-          <span className="dot" /> SYS ONLINE
+          <DataStatus />
         </div>
       </header>
 
@@ -55,6 +81,7 @@ export default function App() {
     <div className="app">
       <Scene />
       <Hud />
+      <DetailPanel />
     </div>
   );
 }

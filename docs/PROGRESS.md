@@ -10,9 +10,9 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 6 ✅ fatta → **prossima: SEZIONE 7** (Layer di visualizzazione: epicentri + vulcani sul globo)
+- **Sezione in corso:** SEZIONE 7 ✅ fatta → **prossima: SEZIONE 8** (UI command-center: ticker, stat 24h, filtri, HUD)
 - **Ultimo aggiornamento:** 2026-06-29
-- **Prossimo passo:** ordine **7 → 8 → 10 → 11**. Il globo 3D base è pronto (R3F + drei, texture 4k NASA notte/giorno con switch, atmosfera fresnel, griglia tattica, Stars, OrbitControls auto-rotate+drag, store Zustand, HUD). SEZIONE 7 popolerà lo store da `GET /events` e disegnerà epicentri/vulcani con `latLonToVec3`. Commit locali ancora da pushare (doc `c33f5fe` + SEZIONE 9 + SEZIONE 6, attendere ok). Secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
+- **Prossimo passo:** ordine **8 → 10 → 11**. Il layer dati è pronto: il FE fa fetch one-shot di `GET /events` (envelope `EventPage`) via `VITE_API_URL`, popola lo store (`setEvents`) e disegna epicentri sismici (InstancedMesh "radar ping" pulsante, colore=severità, size=magnitudo) + marker vulcani (coni auto-illuminati + alone + tooltip hover); click su evento → pannello dettaglio. SEZIONE 8 aggiungerà i controlli filtri (lo store `filters` è già applicato dal layer), ticker, pannello /stats e polling. Commit locali ancora da pushare (attendere ok). Secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
 - **Deciso:** 2 workflow cron attivi (terremoti `0 * * * *` orario, vulcani `0 6 * * *` giornaliero), entrambi con `workflow_dispatch` + concurrency group; `DATABASE_URL` da `secrets.DATABASE_URL` (secret + DB prod → SEZIONE 10); badge status nel README. CI invariata (lint+test su push/PR).
 
 ### Avanzamento sezioni
@@ -24,7 +24,7 @@
 | 4 | ETL vulcani (GVP) | ✅ fatto |
 | 5 | Scheduling (Actions cron) | ✅ fatto |
 | 6 | Frontend base + globo 3D | ✅ fatto |
-| 7 | Layer visualizzazione | ⬜ da fare |
+| 7 | Layer visualizzazione | ✅ fatto |
 | 8 | UI command-center | ⬜ da fare |
 | 9 | API FastAPI completa | ✅ fatto |
 | 10 | Dockerizzazione & Deploy | ⬜ da fare |
@@ -82,6 +82,13 @@ sessioni future non la rimettono in discussione.
 | 2026-06-29 | Atmosfera/shader | Alone **fresnel** (sfera BackSide + blending additivo, `pow(1-|dot(view,normal)|, power)`): strato ciano largo (power 3.2) + strato ambra stretto (power 5). Griglia lat/lon via shader (linee fwidth-AA, attenuate sul lembo) | Effetto glow/atmosfera senza post-processing; doppio strato = profondità. Shader in `src/three/shaders.ts` (modulo non-componente, riusabile) |
 | 2026-06-29 | Camera | drei `OrbitControls`: **auto-rotazione** lenta (speed 0.35, toggle store/HUD) + **drag** per ruotare, **scroll** zoom (no pan), damping, `minDistance 2.4`/`maxDistance 9` | Esperienza "globo che ruota da solo" + interazione fluida; limiti distanza evitano di entrare/uscire dalla scena |
 | 2026-06-29 | FE struttura/store | Componenti: `App`(+HUD) · `three/{Scene,Globe,Atmosphere}` · `shaders.ts`; util pura `lib/geo.ts` (`latLonToVec3`, testata, no dipendenza three); stato globale **Zustand** (`store/useStore`): `events`/`filters`/`autoRotate`/`globeView`/`selectedId`; tipi `types.ts` allineati a `api/schemas` (`Event`/`EventPage`/`Stats`) | `geo.ts` pura = testabile in CI senza WebGL (base per posizionare eventi in SEZ.7); store già pronto a ricevere `GET /events`; tipi FE = contratto API |
+| 2026-06-29 | Epicentri (tecnica) | **Un solo `InstancedMesh`** di quad (PlaneGeometry) tangenti alla superficie → effetto "radar ping". `ShaderMaterial` custom (`eventShaders.ts`): nucleo a disco + **anello che si espande e svanisce** (`uTime` condiviso, `aPhase` per-istanza dalla sequenza aurea → pulsazioni sfalsate). `toneMapped:false`, `NormalBlending`, `depthWrite:false` | InstancedMesh = un draw call per centinaia di eventi (60fps). Anello tangente = look command-center; back-hemisphere occluso dal globo opaco (depthTest). `toneMapped:false` per spiccare sulle luci città in vista notte |
+| 2026-06-29 | Scala colori/dimensioni | `lib/severity.ts` (puro, testato): `severityColor(severity)` = gradiente **verde→ambra→rosso** (stop a 0/0.5/1, `null`→0.5); `magnitudeSize(mag)` = frazione del raggio, curva quadratica `0.012..0.062` (clamp mag 0..8), `null`→minima. Size epicentro `= magnitudeSize·radius·2.4` | Singola fonte di verità della palette eventi (usata da shader epicentri **e** marker vulcani **e** pannello). Funzione pura = testabile in CI senza WebGL (come `geo.ts`) |
+| 2026-06-29 | Vulcani (marker) | **Mesh individuali** (pochi, ~24): cono radiale **auto-illuminato** (`color:#000`+`emissive`=severità, `toneMapped:false` → niente sbiancamento sotto la luce direzionale) + alone additivo + **tooltip drei `<Html>`** al hover (nome/luogo). Click → selezione | I vulcani sono decine, non centinaia → mesh singole = hover/tooltip/click semplici (niente raycast su instanceId). Auto-illuminati = colore costante in vista giorno/notte |
+| 2026-06-29 | Selezione/dettaglio | Click su epicentro (`e.instanceId`→`events[i]`) o vulcano → `select(id)` nello store; `DetailPanel` (DOM, sopra il Canvas) legge `selectedId` e mostra **magnitudo/profondità (solo sismici)/luogo/ora UTC/coords**; chiusura ✕ o `Esc` | Pannello "minimale" richiesto; DOM (non in-canvas) = testo nitido e accessibile; profondità/magnitudo nascoste per i vulcani (null nello schema) |
+| 2026-06-29 | Fetching / limite N | `lib/api.ts` `fetchEvents()` → `GET {VITE_API_URL}/events?order=desc&limit=1000` (= `MAX_LIMIT` API); hook `useEventsLoader` fa **un fetch one-shot al mount** (AbortController), gestisce `loading/ready/error` mostrati nell'HUD ("ACQUIRING FEED…"/"N EVENTS TRACKED"/"⚠ FEED OFFLINE"). **Polling/refresh → SEZIONE 8** | `VITE_API_URL` default dev `http://localhost:8000`. 1000 eventi = un InstancedMesh regge senza problemi; il polling è funzione della console live (SEZ.8) |
+| 2026-06-29 | Mock screenshot | `?mock=1` carica un fixture statico `web/public/mock-events.json` (stesso envelope `EventPage`, 36 terremoti + 8 vulcani globali) invece di chiamare l'API | Demo/screenshot senza DB+API+ETL; opt-in, non tocca il percorso reale. Servito come asset statico (fuori dal bundle JS) |
+| 2026-06-29 | Struttura layer | `three/EventsLayer` (split per tipo + applica i `filters` dello store) → `three/Epicenters` (instanced) + `three/Volcanoes`; shader in `three/eventShaders.ts`; util `lib/severity.ts`+test, `lib/api.ts`, `hooks/useEventsLoader.ts`, `components/DetailPanel.tsx`. **Nessuna nuova dipendenza npm** (`<Html>` è di drei già installato) | Coerente con la separazione SEZ.6 (componenti three sottili + util pure testabili + store). Il layer già rispetta `filters` (eventType/minMagnitude) così i controlli SEZ.8 funzionano senza rifattorizzare |
 | 2026-06-29 | FE tooling | Vite 5 + `@vitejs/plugin-react`; ESLint flat (recommended + `react-hooks` + `react-refresh`, globals browser); tsconfig split (`app`/`node`, `tsc -b`); Vitest env **node** (test solo funzioni pure) | Allineato al job CI `frontend` (Node 20, `lint`+`test --if-present`, niente build). Test in `node` → niente jsdom/canvas fragili in CI |
 | 2026-06-28 | Test API | Postgres+PostGIS **reale** (scelta utente): in CI un `service postgis/postgis:16-3.4` + step `alembic upgrade head`; in locale il docker già attivo. Isolamento per test: connessione+transazione dedicata, `DELETE FROM events` (visibile solo in-transaction) → DB vuoto deterministico, **rollback** a fine test (dati reali locali intatti). `get_session` sovrascritta sulla sessione del test | Esercita davvero `ST_DWithin`/trigger `geom`/enum nativi; il rollback non sporca né dipende dai dati locali. `httpx` (per `TestClient`) già presente nell'extra `[etl]` → nessuna nuova dipendenza |
 
@@ -90,6 +97,47 @@ sessioni future non la rimettono in discussione.
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-29 — SEZIONE 7: Layer di visualizzazione (epicentri + vulcani) ✅
+- Cosa è stato fatto: il globo ora mostra **dati reali**. Il FE fa un fetch one-shot
+  di `GET /events` (envelope `EventPage`) via `VITE_API_URL`, popola lo store Zustand
+  (`setEvents`) con stato loading/errore nell'HUD, e disegna due layer: **epicentri
+  sismici** come singolo `InstancedMesh` di quad tangenti ("radar ping" pulsante,
+  colore=severità verde→ambra→rosso, dimensione=magnitudo) e **vulcani** come coni
+  auto-illuminati con alone + tooltip al hover. Click su un evento → selezione +
+  **pannello dettaglio** minimale (mag/profondità/luogo/ora/coords). I `filters` dello
+  store sono già applicati dal layer (i controlli arrivano in SEZIONE 8).
+- File creati/modificati:
+  - `web/src/lib/severity.ts` (`severityColor`/`magnitudeSize`, pure) + `severity.test.ts` (9 test)
+  - `web/src/lib/api.ts` (`fetchEvents` da `VITE_API_URL`, `?mock=1`→fixture statico)
+  - `web/src/hooks/useEventsLoader.ts` (fetch one-shot al mount, loading/ready/error)
+  - `web/src/three/eventShaders.ts` (GLSL epicentri: nucleo + anello pulsante instanced)
+  - `web/src/three/Epicenters.tsx` (InstancedMesh + attributi per-istanza aColor/aPhase,
+    `uTime` in `useFrame`, click→`instanceId`→select)
+  - `web/src/three/Volcanoes.tsx` (coni emissivi + alone additivo + `<Html>` tooltip hover)
+  - `web/src/three/EventsLayer.tsx` (split per tipo + applica `filters`), agganciato in `Scene.tsx`
+  - `web/src/components/DetailPanel.tsx` (DOM, legge `selectedId`, chiusura ✕/Esc)
+  - `web/src/App.tsx` (+`DataStatus` nell'HUD, +`DetailPanel`), `web/src/styles.css`
+    (+status feed, +tooltip vulcano, +pannello dettaglio)
+  - `web/src/vite-env.d.ts` (tipo `VITE_API_URL`), `web/public/mock-events.json` (44 eventi)
+- Scelte prese: vedi tabella Decisioni (tecnica radar-ping instanced; scala colori/dimensioni
+  in `severity.ts` pura; vulcani come mesh individuali auto-illuminate + tooltip; selezione
+  + DetailPanel; fetching one-shot + limite 1000; mock `?mock=1`; struttura layer; **0 nuove deps**).
+- Verifiche eseguite:
+  - `npm run lint` → eslint pulito · `npm run test` → **15 passed** (6 geo + 9 severity)
+  - `npm run build` (`tsc -b` + vite) → ok (bundle 1.0 MB / 279 KB gzip; warning three
+    >500 KB preesistente → SEZIONE 11)
+  - `npm run dev` (porte 5173–5182 occupate → :5183) + **screenshot headless** (Chrome
+    `--use-angle=swiftshader`) con `?mock=1`: vista **notte** e **giorno** mostrano i ping
+    radar pulsanti scalati per magnitudo lungo Ande/California/Caraibi (ring verde a bassa
+    severità in Rep. Dominicana, ambra/rosso più forti) e i coni vulcano (Popocatépetl,
+    Fuego, Kilauea/Reykjanes). Status HUD "44 EVENTS TRACKED". Nessun errore di transform.
+- Problemi aperti / TODO: push in attesa di ok. Per dati **reali** (non mock) serve
+  `docker compose up -d postgres` + `uvicorn api.main:app` + un run ETL, poi aprire il FE
+  senza `?mock=1`. Polling/refresh + controlli filtri/ticker/stat → SEZIONE 8.
+  - ⚠️ Nota operativa: durante la verifica, lo stop del dev server con un filtro
+    `CommandLine like *vite*` ha terminato **tutti** i processi Vite attivi (erano ~10,
+    altri progetti aperti sulle porte 5173–5182). Nessun dato perso, vanno solo riavviati.
 
 ### 2026-06-29 — SEZIONE 6: Frontend base + globo 3D ✅
 - Cosa è stato fatto: scaffold completo Vite + React + TS in `web/` (sopra lo scaffold
@@ -335,7 +383,7 @@ TEMPLATE voce di log:
 - [ ] **CORS prod**: aggiungere l'origin Vercel valorizzando `CORS_ALLOW_ORIGINS`
       sul backend in SEZIONE 10 (env, non hard-coded).
 - [x] ~~Confermare libreria 3D definitiva (SEZIONE 6).~~ → **R3F v8 + drei v9 + three 0.169** (vedi Decisioni 2026-06-29).
-- [ ] Il FE consuma `GET /events` (envelope `EventPage`) e `GET /stats` in **SEZIONE 7**;
-      `VITE_API_URL` → backend (default dev `http://localhost:8000`). Tipi già pronti in
-      `web/src/types.ts`, store Zustand pronto a ricevere gli eventi.
+- [x] ~~Il FE consuma `GET /events` (envelope `EventPage`)~~: fatto in SEZIONE 7
+      (`lib/api.ts` + `hooks/useEventsLoader.ts`, `VITE_API_URL` default `:8000`, limit 1000).
+      Resta da consumare **`GET /stats`** + polling/refresh in **SEZIONE 8**.
 - [ ] Bundle FE: chunk three.js >500 KB → valutare code-split/`manualChunks` in SEZIONE 11.

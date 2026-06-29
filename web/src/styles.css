@@ -167,6 +167,152 @@ body {
   color: var(--text);
 }
 
+/* ---- Stato feed dati (GET /events) ---- */
+.data-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  white-space: nowrap;
+}
+
+.data-status.ready {
+  color: var(--cyan);
+}
+
+.data-status.loading {
+  color: var(--text-dim);
+}
+
+.data-status.error {
+  color: var(--amber);
+  text-shadow: 0 0 12px rgba(255, 176, 0, 0.5);
+}
+
+/* ---- Tooltip vulcano (drei Html) ---- */
+.volcano-tip {
+  pointer-events: none;
+  transform: translateY(-100%);
+  background: rgba(8, 12, 18, 0.92);
+  border: 1px solid rgba(255, 176, 0, 0.5);
+  border-radius: 3px;
+  padding: 5px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: inherit;
+  white-space: nowrap;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.6);
+}
+
+.vt-name {
+  color: var(--amber);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
+.vt-place {
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+}
+
+/* ---- Pannello dettaglio evento ---- */
+.detail-panel {
+  position: absolute;
+  z-index: 20;
+  left: clamp(12px, 2.2vw, 28px);
+  bottom: clamp(56px, 8vh, 96px);
+  width: min(320px, 80vw);
+  pointer-events: auto;
+  background: linear-gradient(180deg, rgba(10, 15, 22, 0.94), rgba(6, 9, 14, 0.94));
+  border: 1px solid rgba(56, 225, 255, 0.3);
+  border-radius: 4px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.dp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dp-kind {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+}
+
+.dp-kind.quake {
+  color: var(--amber);
+}
+
+.dp-kind.volcano {
+  color: #ff7a4d;
+}
+
+.dp-close {
+  pointer-events: auto;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  transition: color 0.2s;
+}
+
+.dp-close:hover {
+  color: var(--cyan);
+}
+
+.dp-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.dp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin: 0;
+}
+
+.dp-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dp-grid dt {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+}
+
+.dp-grid dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.dp-grid dd.dp-mag {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--amber);
+  line-height: 1;
+}
+
 /* Angoli stile mirino */
 .corner {
   position: absolute;
