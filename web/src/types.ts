@@ -40,8 +40,12 @@ export interface Stats {
   active_volcanoes_7d: number;
 }
 
-/** Filtri lato UI (applicati al globo + futura query API in SEZIONE 8). */
+/** Finestra temporale del filtro (su occurred_at, rolling rispetto a "ora"). */
+export type TimeWindow = "24h" | "7d" | "all";
+
+/** Filtri lato UI, applicati CLIENT-SIDE al globo/ticker/contatori (SEZIONE 8). */
 export interface Filters {
   eventType: EventType | "all";
   minMagnitude: number;
+  timeWindow: TimeWindow;
 }

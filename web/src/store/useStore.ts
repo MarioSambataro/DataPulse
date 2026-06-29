@@ -25,7 +25,7 @@ interface AppState {
 
 export const useStore = create<AppState>((set) => ({
   events: [],
-  filters: { eventType: "all", minMagnitude: 0 },
+  filters: { eventType: "all", minMagnitude: 0, timeWindow: "all" },
   autoRotate: true,
   globeView: "night",
   selectedId: null,

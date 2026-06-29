@@ -10,9 +10,9 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 7 ✅ fatta → **prossima: SEZIONE 8** (UI command-center: ticker, stat 24h, filtri, HUD)
+- **Sezione in corso:** SEZIONE 8 ✅ fatta → **prossima: SEZIONE 10** (Dockerizzazione & Deploy)
 - **Ultimo aggiornamento:** 2026-06-29
-- **Prossimo passo:** ordine **8 → 10 → 11**. Il layer dati è pronto: il FE fa fetch one-shot di `GET /events` (envelope `EventPage`) via `VITE_API_URL`, popola lo store (`setEvents`) e disegna epicentri sismici (InstancedMesh "radar ping" pulsante, colore=severità, size=magnitudo) + marker vulcani (coni auto-illuminati + alone + tooltip hover); click su evento → pannello dettaglio. SEZIONE 8 aggiungerà i controlli filtri (lo store `filters` è già applicato dal layer), ticker, pannello /stats e polling. Commit locali ancora da pushare (attendere ok). Secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
+- **Prossimo passo:** ordine **10 → 11**. L'HUD command-center è completo: ticker eventi live (marquee bordo inferiore, pausa su hover, click→seleziona), pannello SITREP 24h da `GET /stats` (con fallback derivato dagli eventi in mock/offline), pannello filtri (tipo/magnitudo/finestra) cablato a `setFilters` → il globo, il ticker e i contatori si aggiornano client-side, polling 120s di eventi+stats senza flicker, reticolo sull'evento selezionato. Restano: deploy (SEZIONE 10) + rifinitura/README (SEZIONE 11). Commit SEZIONE 8 locale da pushare (attendere ok).
 - **Deciso:** 2 workflow cron attivi (terremoti `0 * * * *` orario, vulcani `0 6 * * *` giornaliero), entrambi con `workflow_dispatch` + concurrency group; `DATABASE_URL` da `secrets.DATABASE_URL` (secret + DB prod → SEZIONE 10); badge status nel README. CI invariata (lint+test su push/PR).
 
 ### Avanzamento sezioni
@@ -25,7 +25,7 @@
 | 5 | Scheduling (Actions cron) | ✅ fatto |
 | 6 | Frontend base + globo 3D | ✅ fatto |
 | 7 | Layer visualizzazione | ✅ fatto |
-| 8 | UI command-center | ⬜ da fare |
+| 8 | UI command-center | ✅ fatto |
 | 9 | API FastAPI completa | ✅ fatto |
 | 10 | Dockerizzazione & Deploy | ⬜ da fare |
 | 11 | README & rifinitura | ⬜ da fare |
@@ -90,6 +90,10 @@ sessioni future non la rimettono in discussione.
 | 2026-06-29 | Mock screenshot | `?mock=1` carica un fixture statico `web/public/mock-events.json` (stesso envelope `EventPage`, 36 terremoti + 8 vulcani globali) invece di chiamare l'API | Demo/screenshot senza DB+API+ETL; opt-in, non tocca il percorso reale. Servito come asset statico (fuori dal bundle JS) |
 | 2026-06-29 | Struttura layer | `three/EventsLayer` (split per tipo + applica i `filters` dello store) → `three/Epicenters` (instanced) + `three/Volcanoes`; shader in `three/eventShaders.ts`; util `lib/severity.ts`+test, `lib/api.ts`, `hooks/useEventsLoader.ts`, `components/DetailPanel.tsx`. **Nessuna nuova dipendenza npm** (`<Html>` è di drei già installato) | Coerente con la separazione SEZ.6 (componenti three sottili + util pure testabili + store). Il layer già rispetta `filters` (eventType/minMagnitude) così i controlli SEZ.8 funzionano senza rifattorizzare |
 | 2026-06-29 | FE tooling | Vite 5 + `@vitejs/plugin-react`; ESLint flat (recommended + `react-hooks` + `react-refresh`, globals browser); tsconfig split (`app`/`node`, `tsc -b`); Vitest env **node** (test solo funzioni pure) | Allineato al job CI `frontend` (Node 20, `lint`+`test --if-present`, niente build). Test in `node` → niente jsdom/canvas fragili in CI |
+| 2026-06-29 | FE filtri (SEZ.8) | **Solo client-side** (scelta utente): `lib/filters.filterEvents` (puro, testato) è l'unica fonte di verità del filtro, usata da `EventsLayer`, `EventTicker` e dal contatore dei `FiltersPanel`. `minMagnitude` si applica **solo ai terremoti** → i vulcani (mag null) restano visibili in modalità "all"; finestra temporale `24h`/`7d`/`all` su `occurred_at` | Istantaneo, niente flicker/latenza, niente chiamate extra. Il filtro API `min_magnitude` escluderebbe i vulcani anche in "all"; client-side evitiamo il problema. Opera sui ≤1000 eventi caricati (ampiamente sufficiente per il portfolio) |
+| 2026-06-29 | FE polling (SEZ.8) | **120s** (`POLL_INTERVAL_MS` in `lib/api.ts`): `useEventsLoader` ri-fetcha `GET /events` e `useStatsLoader` `GET /stats`. Primo load = "loading"; refresh **silenziosi** (resta "ready") che rimpiazzano gli eventi nello store; un refresh fallito con dati già presenti NON sbandiera FEED OFFLINE | Cron ETL orario (terremoti)/giornaliero (vulcani) → i dati cambiano lentamente; 120s dà un feel "live" senza martellare il backend. `AbortController` per request; nessun flicker (l'InstancedMesh rimonta solo se cambia il numero di eventi) |
+| 2026-06-29 | FE /stats (SEZ.8) | `useStatsLoader`: in reale usa `GET /stats`; in `?mock=1` (niente endpoint) **e come fallback se /stats fallisce** deriva le stat client-side da `lib/stats.deriveStats` (puro, testato) sugli eventi in store, con le stesse finestre rolling 24h/7g dell'API. `source` (`api`/`derived`) → tag **MOCK/DERIVED/OFFLINE** nel pannello | Il pannello SITREP è **sempre popolato** (screenshot/demo senza DB). `deriveStats` replica `api.queries.compute_stats`; vulcani attivi = `meta.volcano_number` distinti (fallback `id` se assente, es. mock) |
+| 2026-06-29 | HUD struttura (SEZ.8) | Componenti DOM sopra il Canvas: `StatsPanel`+`FiltersPanel` in sidebar destra (`.side-stack`), `EventTicker` marquee CSS lungo il bordo inferiore (lista duplicata + `@keyframes ticker-scroll`, pausa su `:hover`, righe cliccabili→`select`), `DetailPanel` (SEZ.7) risalito sopra il ticker. In-canvas: `three/SelectionMarker` (reticolo ciano pulsante tangente sull'evento `selectedId`, additive, `toneMapped:false`). Util pure nuove: `lib/filters.ts`, `lib/stats.ts`, `lib/format.ts` (`timeAgo`) | Coerente con la separazione SEZ.6/7 (DOM per testo nitido + componenti three sottili + util pure testabili in CI). Ticker via CSS marquee = 0 costo JS per frame; reticolo reagisce a click globo **e** ticker (stesso `select`/`selectedId`). **0 nuove dipendenze npm** |
 | 2026-06-28 | Test API | Postgres+PostGIS **reale** (scelta utente): in CI un `service postgis/postgis:16-3.4` + step `alembic upgrade head`; in locale il docker già attivo. Isolamento per test: connessione+transazione dedicata, `DELETE FROM events` (visibile solo in-transaction) → DB vuoto deterministico, **rollback** a fine test (dati reali locali intatti). `get_session` sovrascritta sulla sessione del test | Esercita davvero `ST_DWithin`/trigger `geom`/enum nativi; il rollback non sporca né dipende dai dati locali. `httpx` (per `TestClient`) già presente nell'extra `[etl]` → nessuna nuova dipendenza |
 
 ---
@@ -97,6 +101,46 @@ sessioni future non la rimettono in discussione.
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-29 — SEZIONE 8: UI command-center (HUD) ✅
+- Cosa è stato fatto: il globo è ora una **console**. Aggiunti: **ticker eventi live**
+  (marquee orizzontale lungo il bordo inferiore, pausa su hover, ultimi 40 eventi
+  filtrati; click su una riga → seleziona l'evento + reticolo sul globo + DetailPanel);
+  **pannello SITREP 24h** da `GET /stats` (terremoti 24h, max magnitudo 24h, eventi 7g,
+  vulcani attivi 7g) con loading/errore e **fallback derivato** dagli eventi in `?mock=1`
+  o se /stats fallisce; **pannello filtri** (tipo all/seismic/volcanic, slider magnitudo
+  minima, finestra 24h/7d/all) cablato a `setFilters` → globo+ticker+contatori si
+  aggiornano client-side; **polling 120s** di eventi+stats senza flicker; **reticolo**
+  ciano pulsante sull'evento selezionato. HUD coerente (bordi, monospace, ambra/ciano).
+- File creati/modificati:
+  - `web/src/lib/filters.ts` (`filterEvents`/`timeWindowStart`, puro) + `filters.test.ts` (8 test)
+  - `web/src/lib/stats.ts` (`deriveStats`, puro) + `stats.test.ts` (3 test)
+  - `web/src/lib/format.ts` (`timeAgo` compatto)
+  - `web/src/lib/api.ts` (+`fetchStats`, +`isMockMode`, +`POLL_INTERVAL_MS=120s`)
+  - `web/src/hooks/useEventsLoader.ts` (+polling silenzioso, no-flicker, no-offline su buco)
+  - `web/src/hooks/useStatsLoader.ts` (GET /stats + poll + fallback derivato, `source`)
+  - `web/src/components/StatsPanel.tsx` · `FiltersPanel.tsx` · `EventTicker.tsx`
+  - `web/src/three/SelectionMarker.tsx` (reticolo) + agganciato in `Scene.tsx`
+  - `web/src/three/EventsLayer.tsx` (refactor: usa `filterEvents` condiviso)
+  - `web/src/types.ts` (+`TimeWindow`, +`timeWindow` in `Filters`), `store/useStore.ts` (default)
+  - `web/src/App.tsx` (+sidebar stat/filtri, +ticker), `web/src/styles.css` (console CSS)
+- Scelte prese: vedi tabella Decisioni (filtri **solo client-side** con `minMagnitude` sui
+  soli terremoti; **polling 120s**; /stats reale + **derivazione fallback**; struttura HUD
+  DOM + reticolo in-canvas; **0 nuove dipendenze npm**).
+- Verifiche eseguite:
+  - `npm run lint` → eslint pulito · `npm run test` → **24 passed** (6 geo + 9 severity +
+    8 filters + 3 stats; +2 file nuovi)
+  - `npm run build` (`tsc -b` + vite) → ok (bundle 1.0 MB / 281 KB gzip; warning three
+    >500 KB preesistente → SEZIONE 11)
+  - `npm run dev` (:5173) + **screenshot headless** (Chrome `--use-angle=swiftshader`)
+    con `?mock=1`: (a) vista **notte** — SITREP `DERIVED` (SEISMIC 31 / MAX MAG 6.8 /
+    EVENTS 7D 44 / VOLCANOES 7D 8), filtri ALL, ticker che scorre; (b) **selezione** evento
+    (Ridgecrest M4.3) → reticolo ciano sul globo + DetailPanel + riga ticker evidenziata,
+    vista giorno; (c) filtro **VOLCANIC** → solo coni vulcano, MIN MAG disabilitato con nota
+    "n/a · volcanoes have no magnitude", contatore 8/44, ticker con soli vulcani.
+  - Console del browser pulita (nessun errore di pagina/three/React).
+- Problemi aperti / TODO: push SEZIONE 8 in attesa di ok. Per stat **reali** (non derivate)
+  serve `GET /stats` raggiungibile (API up); senza, il pannello mostra `DERIVED`/`OFFLINE`.
 
 ### 2026-06-29 — SEZIONE 7: Layer di visualizzazione (epicentri + vulcani) ✅
 - Cosa è stato fatto: il globo ora mostra **dati reali**. Il FE fa un fetch one-shot
@@ -385,5 +429,7 @@ TEMPLATE voce di log:
 - [x] ~~Confermare libreria 3D definitiva (SEZIONE 6).~~ → **R3F v8 + drei v9 + three 0.169** (vedi Decisioni 2026-06-29).
 - [x] ~~Il FE consuma `GET /events` (envelope `EventPage`)~~: fatto in SEZIONE 7
       (`lib/api.ts` + `hooks/useEventsLoader.ts`, `VITE_API_URL` default `:8000`, limit 1000).
-      Resta da consumare **`GET /stats`** + polling/refresh in **SEZIONE 8**.
+- [x] ~~Consumare `GET /stats` + polling/refresh~~: fatto in SEZIONE 8 (`hooks/useStatsLoader.ts`
+      + polling 120s in entrambi i loader; fallback derivato in mock/offline). I controlli
+      filtri/ticker/SITREP sono cablati; tutto client-side (vedi Decisioni 2026-06-29).
 - [ ] Bundle FE: chunk three.js >500 KB → valutare code-split/`manualChunks` in SEZIONE 11.

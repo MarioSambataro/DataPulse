@@ -224,7 +224,7 @@ body {
   position: absolute;
   z-index: 20;
   left: clamp(12px, 2.2vw, 28px);
-  bottom: clamp(56px, 8vh, 96px);
+  bottom: clamp(104px, 15vh, 150px);
   width: min(320px, 80vw);
   pointer-events: auto;
   background: linear-gradient(180deg, rgba(10, 15, 22, 0.94), rgba(6, 9, 14, 0.94));
@@ -344,4 +344,329 @@ body {
   right: 14px;
   border-left: none;
   border-top: none;
+}
+
+/* ============ SEZIONE 8 — console command-center ============ */
+
+/* ---- Sidebar destra: stat + filtri ---- */
+.side-stack {
+  position: absolute;
+  z-index: 15;
+  top: clamp(60px, 9vh, 96px);
+  right: clamp(12px, 2.2vw, 28px);
+  width: min(248px, 84vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none; /* i pannelli riattivano i click */
+}
+
+.panel {
+  pointer-events: auto;
+  background: linear-gradient(180deg, rgba(10, 15, 22, 0.9), rgba(6, 9, 14, 0.9));
+  border: 1px solid rgba(56, 225, 255, 0.22);
+  border-radius: 4px;
+  padding: 11px 13px 13px;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+  border-bottom: 1px solid rgba(56, 225, 255, 0.14);
+  padding-bottom: 7px;
+}
+
+.panel-title {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--cyan);
+}
+
+.panel-tag {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid currentColor;
+}
+
+.panel-tag.dim {
+  color: var(--text-dim);
+}
+
+.panel-tag.warn {
+  color: var(--amber);
+}
+
+.panel-msg {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  padding: 8px 0;
+}
+
+.panel-msg.warn {
+  color: var(--amber);
+}
+
+/* ---- Metriche SITREP ---- */
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px 12px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.metric-label {
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  color: var(--text-dim);
+}
+
+.metric-value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  text-shadow: 0 0 12px rgba(56, 225, 255, 0.25);
+}
+
+.metric-value.amber {
+  color: var(--amber);
+  text-shadow: 0 0 12px rgba(255, 176, 0, 0.4);
+}
+
+/* ---- Filtri ---- */
+.filter-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 11px;
+}
+
+.filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.filter-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+}
+
+.filter-label strong {
+  color: var(--amber);
+  font-size: 11px;
+}
+
+.filter-label strong.muted {
+  color: var(--text-dim);
+}
+
+.filter-note {
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.seg {
+  display: flex;
+  gap: 4px;
+}
+
+.seg-btn {
+  flex: 1;
+  pointer-events: auto;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  background: rgba(56, 225, 255, 0.04);
+  border: 1px solid rgba(56, 225, 255, 0.2);
+  padding: 5px 4px;
+  border-radius: 3px;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.on {
+  color: var(--bg);
+  background: var(--cyan);
+  border-color: var(--cyan);
+  box-shadow: 0 0 12px rgba(56, 225, 255, 0.35);
+  font-weight: 700;
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--cyan);
+  cursor: pointer;
+  height: 4px;
+}
+
+.slider:disabled {
+  accent-color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ---- Ticker eventi live (marquee bordo inferiore) ---- */
+.ticker {
+  position: absolute;
+  z-index: 15;
+  left: clamp(12px, 2.2vw, 28px);
+  right: clamp(12px, 2.2vw, 28px);
+  bottom: clamp(60px, 9vh, 88px);
+  height: 34px;
+  display: flex;
+  align-items: stretch;
+  background: linear-gradient(180deg, rgba(10, 15, 22, 0.82), rgba(6, 9, 14, 0.82));
+  border: 1px solid rgba(56, 225, 255, 0.18);
+  border-radius: 4px;
+  overflow: hidden;
+  backdrop-filter: blur(3px);
+}
+
+.ticker-label {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: var(--bg);
+  background: var(--cyan);
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.ticker-none {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--text-dim);
+}
+
+.ticker-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+}
+
+.ticker-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation-name: ticker-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-item {
+  pointer-events: auto;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-right: 1px solid rgba(56, 225, 255, 0.1);
+  padding: 0 14px;
+  height: 100%;
+  transition: background 0.15s;
+}
+
+.ticker-item:hover {
+  background: rgba(56, 225, 255, 0.1);
+}
+
+.ticker-item.sel {
+  background: rgba(56, 225, 255, 0.16);
+}
+
+.ticker-item .ti-icon {
+  font-size: 9px;
+}
+
+.ticker-item.quake .ti-icon {
+  color: var(--amber);
+}
+
+.ticker-item.volcano .ti-icon {
+  color: #ff7a4d;
+}
+
+.ti-mag {
+  color: var(--amber);
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.ti-place {
+  color: var(--text);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ti-time {
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+/* Su schermi stretti la sidebar si restringe e il pannello dettaglio sale. */
+@media (max-width: 560px) {
+  .side-stack {
+    width: min(200px, 60vw);
+  }
+  .ti-place {
+    max-width: 130px;
+  }
 }

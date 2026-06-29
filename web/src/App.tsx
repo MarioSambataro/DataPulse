@@ -1,4 +1,7 @@
 import { DetailPanel } from "./components/DetailPanel";
+import { EventTicker } from "./components/EventTicker";
+import { FiltersPanel } from "./components/FiltersPanel";
+import { StatsPanel } from "./components/StatsPanel";
 import { useEventsLoader } from "./hooks/useEventsLoader";
 import { Scene } from "./three/Scene";
 import { useStore } from "./store/useStore";
@@ -81,6 +84,13 @@ export default function App() {
     <div className="app">
       <Scene />
       <Hud />
+      {/* Console laterale: statistiche 24h + filtri (scrivono nello store). */}
+      <aside className="side-stack">
+        <StatsPanel />
+        <FiltersPanel />
+      </aside>
+      {/* Ticker live lungo il bordo inferiore. */}
+      <EventTicker />
       <DetailPanel />
     </div>
   );
