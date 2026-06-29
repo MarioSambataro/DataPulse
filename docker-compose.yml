@@ -18,21 +18,30 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- Placeholder: abilitati nelle sezioni successive (9 = API, 10 = deploy) ---
-  # api:
-  #   build: ./api
-  #   env_file: .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   ports:
-  #     - "8000:8000"
+  # API FastAPI — stessa immagine usata in produzione (Dockerfile root, SEZIONE 10).
+  # Serve a verificare in locale l'immagine contro il Postgres del compose:
+  #   docker compose up -d --build api   →  http://localhost:8000/health e /docs
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: datapulse-api
+    container_name: datapulse-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Dentro la rete del compose il DB è l'host 'postgres', non 'localhost'.
+      # Questo override vince sul DATABASE_URL del .env (che punta a localhost).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-datapulse}:${POSTGRES_PASSWORD:-datapulse}@postgres:5432/${POSTGRES_DB:-datapulse}
+      RUN_MIGRATIONS: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
 
-  # web:
-  #   build: ./web
-  #   env_file: .env
-  #   ports:
-  #     - "5173:5173"
+  # Il frontend (web/) NON gira qui: in produzione è build statica su Vercel
+  # (vercel.json + VITE_API_URL → backend pubblico). In locale: cd web && npm run dev.
 
 volumes:
   postgres_data:

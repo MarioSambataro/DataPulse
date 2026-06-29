@@ -1,0 +1,43 @@
+# Render Blueprint — DataPulse backend (SEZIONE 10).
+# Crea, da un solo file, due risorse:
+#   1) datapulse-db   → Postgres 16 gestito (piano free). PostGIS viene abilitato
+#      dalla prima migrazione Alembic (CREATE EXTENSION IF NOT EXISTS postgis).
+#   2) datapulse-api  → web service Docker che builda ./Dockerfile.
+#
+# Le migrazioni girano all'avvio del container (docker-entrypoint.sh, RUN_MIGRATIONS=1):
+# i pre-deploy/release command di Render sono solo a pagamento, l'entrypoint è
+# l'equivalente free-tier (alembic upgrade head è idempotente).
+#
+# Uso: Render Dashboard → New → Blueprint → punta a questo repo. Poi impostare a mano
+# il valore di CORS_ALLOW_ORIGINS (sync:false) con l'origin Vercel.
+
+databases:
+  - name: datapulse-db
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: datapulse-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Connection string INTERNA del DB (stessa region) — iniettata dal blueprint.
+      # etl.config la normalizza a postgresql+psycopg:// (psycopg v3).
+      - key: DATABASE_URL
+        fromDatabase:
+          name: datapulse-db
+          property: connectionString
+      # Origin Vercel di produzione: da valorizzare a mano nel dashboard (non in repo).
+      # Es.: https://datapulse.vercel.app
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      # Applica le migrazioni all'avvio (vedi docker-entrypoint.sh).
+      - key: RUN_MIGRATIONS
+        value: "1"

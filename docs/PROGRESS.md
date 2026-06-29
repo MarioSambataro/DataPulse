@@ -10,9 +10,9 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 8 ✅ fatta → **prossima: SEZIONE 10** (Dockerizzazione & Deploy)
+- **Sezione in corso:** SEZIONE 10 ✅ fatta (file/config deploy + verifica locale immagine) → **prossima: SEZIONE 11** (README & rifinitura)
 - **Ultimo aggiornamento:** 2026-06-29
-- **Prossimo passo:** ordine **10 → 11**. L'HUD command-center è completo: ticker eventi live (marquee bordo inferiore, pausa su hover, click→seleziona), pannello SITREP 24h da `GET /stats` (con fallback derivato dagli eventi in mock/offline), pannello filtri (tipo/magnitudo/finestra) cablato a `setFilters` → il globo, il ticker e i contatori si aggiornano client-side, polling 120s di eventi+stats senza flicker, reticolo sull'evento selezionato. Restano: deploy (SEZIONE 10) + rifinitura/README (SEZIONE 11). Commit SEZIONE 8 locale da pushare (attendere ok).
+- **Prossimo passo:** ordine **11**. Deploy preparato in modalità "file + guida": `Dockerfile` (API, python-slim, `.[api,db]`, entrypoint che fa `alembic upgrade head` poi `uvicorn`, healthcheck), `render.yaml` (Blueprint: Postgres free + web Docker), `web/vercel.json`, `docker-compose.yml` con servizio `api`, `docs/DEPLOY.md` (guida passo-passo). Provider scelto: **Render** (backend+DB) + **Vercel** (frontend). Immagine verificata in locale (build + run contro il Postgres del compose: `/health`, `/docs`, `/events` total 455). **Deploy live da fare TU** coi tuoi account (Render/Vercel/secret GitHub) seguendo `docs/DEPLOY.md`. Commit SEZIONE 10 locale da pushare (attendere ok).
 - **Deciso:** 2 workflow cron attivi (terremoti `0 * * * *` orario, vulcani `0 6 * * *` giornaliero), entrambi con `workflow_dispatch` + concurrency group; `DATABASE_URL` da `secrets.DATABASE_URL` (secret + DB prod → SEZIONE 10); badge status nel README. CI invariata (lint+test su push/PR).
 
 ### Avanzamento sezioni
@@ -27,7 +27,7 @@
 | 7 | Layer visualizzazione | ✅ fatto |
 | 8 | UI command-center | ✅ fatto |
 | 9 | API FastAPI completa | ✅ fatto |
-| 10 | Dockerizzazione & Deploy | ⬜ da fare |
+| 10 | Dockerizzazione & Deploy | ✅ fatto (file/config + verifica locale; deploy live a cura utente) |
 | 11 | README & rifinitura | ⬜ da fare |
 
 > Legenda: ⬜ da fare · 🟨 in corso · ✅ fatto · ⛔ bloccato
@@ -94,6 +94,13 @@ sessioni future non la rimettono in discussione.
 | 2026-06-29 | FE polling (SEZ.8) | **120s** (`POLL_INTERVAL_MS` in `lib/api.ts`): `useEventsLoader` ri-fetcha `GET /events` e `useStatsLoader` `GET /stats`. Primo load = "loading"; refresh **silenziosi** (resta "ready") che rimpiazzano gli eventi nello store; un refresh fallito con dati già presenti NON sbandiera FEED OFFLINE | Cron ETL orario (terremoti)/giornaliero (vulcani) → i dati cambiano lentamente; 120s dà un feel "live" senza martellare il backend. `AbortController` per request; nessun flicker (l'InstancedMesh rimonta solo se cambia il numero di eventi) |
 | 2026-06-29 | FE /stats (SEZ.8) | `useStatsLoader`: in reale usa `GET /stats`; in `?mock=1` (niente endpoint) **e come fallback se /stats fallisce** deriva le stat client-side da `lib/stats.deriveStats` (puro, testato) sugli eventi in store, con le stesse finestre rolling 24h/7g dell'API. `source` (`api`/`derived`) → tag **MOCK/DERIVED/OFFLINE** nel pannello | Il pannello SITREP è **sempre popolato** (screenshot/demo senza DB). `deriveStats` replica `api.queries.compute_stats`; vulcani attivi = `meta.volcano_number` distinti (fallback `id` se assente, es. mock) |
 | 2026-06-29 | HUD struttura (SEZ.8) | Componenti DOM sopra il Canvas: `StatsPanel`+`FiltersPanel` in sidebar destra (`.side-stack`), `EventTicker` marquee CSS lungo il bordo inferiore (lista duplicata + `@keyframes ticker-scroll`, pausa su `:hover`, righe cliccabili→`select`), `DetailPanel` (SEZ.7) risalito sopra il ticker. In-canvas: `three/SelectionMarker` (reticolo ciano pulsante tangente sull'evento `selectedId`, additive, `toneMapped:false`). Util pure nuove: `lib/filters.ts`, `lib/stats.ts`, `lib/format.ts` (`timeAgo`) | Coerente con la separazione SEZ.6/7 (DOM per testo nitido + componenti three sottili + util pure testabili in CI). Ticker via CSS marquee = 0 costo JS per frame; reticolo reagisce a click globo **e** ticker (stesso `select`/`selectedId`). **0 nuove dipendenze npm** |
+| 2026-06-29 | Deploy provider | **Render** (backend API + Postgres) + **Vercel** (frontend), cron ETL su **GitHub Actions** | Render = unico con free tier vero (web service + Postgres gestito) **e** supporto PostGIS (vincolo forte). Trade-off free accettati per portfolio: spin-down ~15min/cold-start ~50s; Postgres free a durata limitata (va ricreato). Railway scartato: niente free tier reale (trial $5 poi ~$5/mese). Modalità scelta: **file/config + guida passo-passo** (`docs/DEPLOY.md`); il deploy live lo esegue l'utente (l'agente non ha gli account cloud) |
+| 2026-06-29 | Dockerfile API | `Dockerfile` in **root** (build context = root), `python:3.12-slim`, `pip install ".[api,db]"`, **niente** build-essential/libpq-dev (`psycopg[binary]` porta libpq) → immagine **~300MB**. `ENTRYPOINT docker-entrypoint.sh`; `CMD`→`uvicorn api.main:app` su `$PORT` (default 8000); `HEALTHCHECK` su `/health` legge `$PORT` a runtime. `.dockerignore` esclude web/docs/.env/VCS | Context root perché l'install dei package `etl/api/db` richiede `pyproject.toml` + sorgenti; `etl` incluso perché `api.db` riusa `etl.db`/`etl.config` (single source of verità URL). `$PORT` per compatibilità Render (inietta la porta). **Una sola immagine** (no immagine ETL separata): i cron restano su GitHub Actions con `pip install`, non serve un'immagine dedicata |
+| 2026-06-29 | Migrazioni in prod | `alembic -c db/alembic.ini upgrade head` eseguito nell'**entrypoint del container** all'avvio (`docker-entrypoint.sh`, controllato da env `RUN_MIGRATIONS`, default `1`), **non** in un release/pre-deploy command | I pre-deploy/release command di Render sono **solo a pagamento**: l'entrypoint è l'equivalente free-tier. `alembic upgrade head` è **idempotente** (no-op se già aggiornato) → sicuro a ogni avvio/restart, self-healing. Disattivabile con `RUN_MIGRATIONS=0` (es. se in futuro si passa a un release command su tier a pagamento). Crea PostGIS+tabella+trigger al primo boot |
+| 2026-06-29 | DATABASE_URL prod | **API (Render):** `DATABASE_URL` iniettata dal blueprint (`fromDatabase`, connection string **interna**, stessa region, no SSL). **Cron ETL (GitHub Actions):** secret `DATABASE_URL` = connection string **esterna** del Postgres Render (`?sslmode=require` se serve). Entrambe `postgresql://` → normalizzate a `postgresql+psycopg://` da `etl.config` | Interna = più veloce e senza SSL per l'API co-locata; esterna = obbligata per le Actions che girano fuori da Render. Un'unica normalizzazione del driver (decisione psycopg v3 rispettata) |
+| 2026-06-29 | CORS prod | `CORS_ALLOW_ORIGINS` impostata **a mano** su Render (env `sync:false` nel blueprint) con l'origin Vercel (es. `https://datapulse.vercel.app`); `api/config.py` la legge da env (mai hard-coded) | L'URL Vercel si conosce solo dopo il deploy frontend → non può stare nel repo. `sync:false` lo tiene fuori dal blueprint. Rispetta la predisposizione SEZIONE 9 (origin da env) |
+| 2026-06-29 | Frontend deploy | **Vercel**, Root Directory = `web`, `web/vercel.json` (preset Vite, build `npm run build`, output `dist`). `VITE_API_URL` = URL pubblico Render, impostata come env Vercel (**build-time**, entra nel bundle) | Build statica = zero costo/always-on su Vercel Hobby; nessuna SPA-rewrite necessaria (i deep-link usano query param `?view=`/`?mock=`, non path routing). 0 nuove dipendenze npm |
+| 2026-06-29 | Compose api locale | `docker-compose.yml`: servizio `api` (stessa immagine prod) con override `DATABASE_URL` → host `postgres` (non `localhost`) | Permette di verificare l'immagine di produzione contro il Postgres del compose senza account cloud; il web resta fuori dal compose (va su Vercel) |
 | 2026-06-28 | Test API | Postgres+PostGIS **reale** (scelta utente): in CI un `service postgis/postgis:16-3.4` + step `alembic upgrade head`; in locale il docker già attivo. Isolamento per test: connessione+transazione dedicata, `DELETE FROM events` (visibile solo in-transaction) → DB vuoto deterministico, **rollback** a fine test (dati reali locali intatti). `get_session` sovrascritta sulla sessione del test | Esercita davvero `ST_DWithin`/trigger `geom`/enum nativi; il rollback non sporca né dipende dai dati locali. `httpx` (per `TestClient`) già presente nell'extra `[etl]` → nessuna nuova dipendenza |
 
 ---
@@ -101,6 +108,41 @@ sessioni future non la rimettono in discussione.
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-29 — SEZIONE 10: Dockerizzazione & Deploy ✅
+- Cosa è stato fatto: preparati **tutti i file/config di deploy** + guida passo-passo
+  (modalità "file + guida": il deploy live lo esegue l'utente coi propri account, l'agente
+  non ne ha). Provider: **Render** (API + Postgres) · **Vercel** (frontend) · cron ETL su
+  **GitHub Actions** (già pronti, SEZIONE 5). Immagine API **verificata in locale** (build
+  + run contro il Postgres del compose).
+- File creati/modificati:
+  - `Dockerfile` (root, build context root): `python:3.12-slim`, `pip install ".[api,db]"`,
+    `HEALTHCHECK` su `/health`, `ENTRYPOINT docker-entrypoint.sh`
+  - `docker-entrypoint.sh`: `alembic upgrade head` (se `RUN_MIGRATIONS=1`) → `uvicorn` su `$PORT`
+  - `.dockerignore` (esclude web/docs/.env/VCS), `.gitattributes` (`*.sh` eol=lf, anti-CRLF)
+  - `render.yaml` (Blueprint: `datapulse-db` Postgres 16 free + `datapulse-api` web Docker;
+    `DATABASE_URL` `fromDatabase`, `CORS_ALLOW_ORIGINS` `sync:false`, `RUN_MIGRATIONS=1`)
+  - `web/vercel.json` (preset Vite: build `npm run build`, output `dist`)
+  - `docker-compose.yml` (abilitato servizio `api` per verifica locale; override `DATABASE_URL`→host `postgres`)
+  - `.env.example` (+`RUN_MIGRATIONS`, note prod: DATABASE_URL interna/esterna, VITE_API_URL Vercel)
+  - `docs/DEPLOY.md` (guida passo-passo: Render Blueprint, Vercel, secret Actions, verifica e2e, costi/limiti)
+  - `docs/PROGRESS.md` (questo aggiornamento)
+- Scelte prese: vedi tabella Decisioni (Render+Vercel e perché; Dockerfile root immagine
+  unica ~300MB; migrazioni nell'entrypoint perché i release command Render sono a pagamento;
+  DATABASE_URL interna per API / esterna per Actions; CORS Vercel da env `sync:false`;
+  frontend Vercel build-time `VITE_API_URL`). **0 nuove dipendenze** npm/python.
+- Verifiche eseguite (locale, contro il Postgres del compose):
+  - `docker build -t datapulse-api .` → OK (wheel `datapulse-0.1.0` + `.[api,db]`), immagine **~300MB**
+  - `docker compose up -d postgres` → healthy; `docker compose up -d --build api`
+  - `docker compose logs api` → `[entrypoint] alembic upgrade head ...` poi `Application startup complete`
+  - `GET /health` → `200 {"status":"ok"}` · `GET /docs` → `200` (Swagger)
+  - `GET /events?limit=1` → `200`, envelope `total=455`, item reale (no `geom`); container **healthy**
+  - container di test fermato (`docker compose stop api`); Postgres lasciato com'era
+- Problemi aperti / TODO: **deploy live a cura utente** (Render Blueprint → impostare
+  `CORS_ALLOW_ORIGINS` con l'URL Vercel; Vercel → `VITE_API_URL`; GitHub → secret `DATABASE_URL`
+  esterno; lanciare i 2 cron; verifica e2e). Vincolo da verificare in live: `SELECT postgis_version()`
+  sul Postgres Render (PostGIS è nella allow-list, ma conferma al primo deploy). Push SEZIONE 10
+  in attesa di ok.
 
 ### 2026-06-29 — SEZIONE 8: UI command-center (HUD) ✅
 - Cosa è stato fatto: il globo è ora una **console**. Aggiunti: **ticker eventi live**
@@ -422,10 +464,17 @@ TEMPLATE voce di log:
       doc + SEZIONE 6). Remote `origin` (`https://github.com/MarioSambataro/DataPulse.git`)
       in pari. I 2 workflow ETL sono ora visibili nella tab Actions (falliranno allo step
       DB finché manca il secret `DATABASE_URL` → SEZIONE 10).
-- [ ] Scegliere provider deploy backend / DB di produzione (Render vs Railway) →
-      poi impostare il secret `DATABASE_URL` su GitHub (SEZIONE 10).
-- [ ] **CORS prod**: aggiungere l'origin Vercel valorizzando `CORS_ALLOW_ORIGINS`
-      sul backend in SEZIONE 10 (env, non hard-coded).
+- [x] ~~Scegliere provider deploy backend / DB di produzione (Render vs Railway)~~ →
+      **Render** scelto (SEZIONE 10, vedi Decisioni). File/config pronti (`render.yaml`,
+      `Dockerfile`, `docs/DEPLOY.md`). **Da fare TU in live:** Render Blueprint + impostare
+      il secret `DATABASE_URL` (connection string **esterna**) su GitHub Actions, poi
+      lanciare i 2 cron.
+- [ ] **CORS prod**: file pronti (`CORS_ALLOW_ORIGINS` `sync:false` nel blueprint, letta da
+      env in `api/config.py`). **Da fare TU in live:** valorizzarla su Render con l'origin
+      Vercel dopo il deploy frontend.
+- [ ] **Deploy live (a cura utente)**: eseguire `docs/DEPLOY.md` (Render API+DB, Vercel
+      frontend con `VITE_API_URL`, secret Actions, verifica e2e cron→API→globo). Poi
+      annotare qui gli **URL live** e l'esito.
 - [x] ~~Confermare libreria 3D definitiva (SEZIONE 6).~~ → **R3F v8 + drei v9 + three 0.169** (vedi Decisioni 2026-06-29).
 - [x] ~~Il FE consuma `GET /events` (envelope `EventPage`)~~: fatto in SEZIONE 7
       (`lib/api.ts` + `hooks/useEventsLoader.ts`, `VITE_API_URL` default `:8000`, limit 1000).

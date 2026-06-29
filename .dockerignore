@@ -1,0 +1,34 @@
+# Mantiene l'immagine API snella: fuori frontend, build, cache, segreti e VCS.
+.git
+.github
+.gitignore
+.gitattributes
+
+# Frontend (va su Vercel, non nell'immagine API)
+web
+
+# Docs / deploy meta
+docs
+README.md
+render.yaml
+docker-compose.yml
+
+# Ambiente / segreti — MAI nell'immagine
+.env
+.env.*
+!.env.example
+
+# Python build/cache
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+*.egg-info
+.venv
+venv
+
+# OS / editor
+.DS_Store
+.vscode
+.idea
