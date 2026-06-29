@@ -326,9 +326,10 @@ TEMPLATE voce di log:
 ---
 
 ## ⚠️ Problemi aperti / TODO trasversali
-- [ ] **Push del branch `main`**: remote `origin` collegato
-      (`https://github.com/MarioSambataro/DataPulse.git`) ma commit locali non ancora
-      pushati → i workflow non compaiono su GitHub finché non si fa `git push`.
+- [x] ~~**Push del branch `main`**~~: fatto il 2026-06-29 (`6040c12`, include SEZIONE 9 +
+      doc + SEZIONE 6). Remote `origin` (`https://github.com/MarioSambataro/DataPulse.git`)
+      in pari. I 2 workflow ETL sono ora visibili nella tab Actions (falliranno allo step
+      DB finché manca il secret `DATABASE_URL` → SEZIONE 10).
 - [ ] Scegliere provider deploy backend / DB di produzione (Render vs Railway) →
       poi impostare il secret `DATABASE_URL` su GitHub (SEZIONE 10).
 - [ ] **CORS prod**: aggiungere l'origin Vercel valorizzando `CORS_ALLOW_ORIGINS`
