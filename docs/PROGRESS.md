@@ -10,9 +10,9 @@
 
 ## 📍 Stato attuale
 
-- **Sezione in corso:** SEZIONE 9 ✅ fatta → **prossima: SEZIONE 6** (Frontend base + globo 3D)
-- **Ultimo aggiornamento:** 2026-06-28
-- **Prossimo passo:** ripreso l'ordine del piano dopo l'anticipo dell'API: **6 → 7 → 8 → 10 → 11**. Ora il FE (SEZIONE 6+) ha un'API reale da consumare (`/events`, `/stats`). Commit doc locale `c33f5fe` + commit SEZIONE 9 da pushare (attendere ok). Secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
+- **Sezione in corso:** SEZIONE 6 ✅ fatta → **prossima: SEZIONE 7** (Layer di visualizzazione: epicentri + vulcani sul globo)
+- **Ultimo aggiornamento:** 2026-06-29
+- **Prossimo passo:** ordine **7 → 8 → 10 → 11**. Il globo 3D base è pronto (R3F + drei, texture 4k NASA notte/giorno con switch, atmosfera fresnel, griglia tattica, Stars, OrbitControls auto-rotate+drag, store Zustand, HUD). SEZIONE 7 popolerà lo store da `GET /events` e disegnerà epicentri/vulcani con `latLonToVec3`. Commit locali ancora da pushare (doc `c33f5fe` + SEZIONE 9 + SEZIONE 6, attendere ok). Secret `DATABASE_URL` + DB prod ancora da SEZIONE 10.
 - **Deciso:** 2 workflow cron attivi (terremoti `0 * * * *` orario, vulcani `0 6 * * *` giornaliero), entrambi con `workflow_dispatch` + concurrency group; `DATABASE_URL` da `secrets.DATABASE_URL` (secret + DB prod → SEZIONE 10); badge status nel README. CI invariata (lint+test su push/PR).
 
 ### Avanzamento sezioni
@@ -23,7 +23,7 @@
 | 3 | ETL terremoti (USGS) | ✅ fatto |
 | 4 | ETL vulcani (GVP) | ✅ fatto |
 | 5 | Scheduling (Actions cron) | ✅ fatto |
-| 6 | Frontend base + globo 3D | ⬜ da fare |
+| 6 | Frontend base + globo 3D | ✅ fatto |
 | 7 | Layer visualizzazione | ⬜ da fare |
 | 8 | UI command-center | ⬜ da fare |
 | 9 | API FastAPI completa | ✅ fatto |
@@ -75,6 +75,14 @@ sessioni future non la rimettono in discussione.
 | 2026-06-28 | API vicinanza | `ST_DWithin(geom, ST_SetSRID(ST_MakePoint(lon,lat),4326)::geography, radius_km*1000)` su `geography` (metri) → sfrutta l'indice GiST | PostGIS lato query; l'API non espone mai `geom`. Verificato su dati reali: near California 100km→11, 10km→4 eventi |
 | 2026-06-28 | /stats semantica | Finestre **rolling** rispetto a `now()` del DB (`generated_at`, UTC) su `occurred_at`: `events_24h`/`events_7d` (qualsiasi tipo), `earthquakes_24h`, `max_magnitude_24h` (max mag terremoti 24h, null se 0), `active_volcanoes_7d` = `count(distinct meta->>'volcano_number')` tra i vulcani negli ultimi 7g | "Vulcani attivi" = numeri GVP distinti con attività recente (GVP è settimanale → finestra 7g). Chiave meta reale = `volcano_number` (non `num`) |
 | 2026-06-28 | API CORS | `CORSMiddleware` con `allow_origins` da env `CORS_ALLOW_ORIGINS` (origin separati da virgola), default dev `http://localhost:5173` (Vite). `allow_methods=["GET"]` | Configurabile senza toccare il codice; l'origin **Vercel** di produzione si aggiunge valorizzando la env sul backend in **SEZIONE 10** (non inventato qui) |
+| 2026-06-29 | 3D lib (DEFINITIVA) | **`react-three-fiber` v8 + `@react-three/drei` v9 + three v0.169** (no globe.gl) | Confermata la candidata: controllo completo di shader (atmosfera fresnel, griglia, futuri epicentri pulsanti SEZ.7) e materiali. drei dà `OrbitControls`/`Stars`/`useTexture` pronti. R3F v8 = React 18 (stack maturo) |
+| 2026-06-29 | Globo superficie | **Texture reali 4k** (giorno + luci notturne) su `MeshStandardMaterial` + **switch giorno/notte** + **griglia lat/lon procedurale** (shader) + **fallback procedurale** se le texture mancano | Scelta utente "wow + professionale": le luci città danno l'effetto, la griglia/atmosfera ambra-ciano danno l'identità command-center. Fallback (ErrorBoundary+Suspense) → globo sempre renderizzato (CI/offline robusti) |
+| 2026-06-29 | Texture asset | NASA Blue/Black Marble via Solar System Scope (**CC BY 4.0**), 8k→**4k** (4096×2048) ridotte con `sharp` (transiente, `--no-save`) + mozjpeg q82 → **~0.8 MB** totali in `web/public/textures/` | 1k iniziale troppo soft a schermo intero; 8k = ~180 MB GPU/texture (rischio 60fps). 4k = nitido + ~45 MB GPU. `sharp` non resta tra le dipendenze. Attribuzione in `public/textures/README.md` |
+| 2026-06-29 | Vista giorno/notte | `night` (mappa scurita #243447 + luci emissive ambra 1.7) ↔ `day` (Terra reale, earthshine emissivo 0.12 sul lato in ombra). Toggle HUD + deep-link `?view=day\|night` | Notte = look tattico DataPulse; giorno = Terra realistica leggibile. Param URL = vista condivisibile (e screenshot headless) |
+| 2026-06-29 | Atmosfera/shader | Alone **fresnel** (sfera BackSide + blending additivo, `pow(1-|dot(view,normal)|, power)`): strato ciano largo (power 3.2) + strato ambra stretto (power 5). Griglia lat/lon via shader (linee fwidth-AA, attenuate sul lembo) | Effetto glow/atmosfera senza post-processing; doppio strato = profondità. Shader in `src/three/shaders.ts` (modulo non-componente, riusabile) |
+| 2026-06-29 | Camera | drei `OrbitControls`: **auto-rotazione** lenta (speed 0.35, toggle store/HUD) + **drag** per ruotare, **scroll** zoom (no pan), damping, `minDistance 2.4`/`maxDistance 9` | Esperienza "globo che ruota da solo" + interazione fluida; limiti distanza evitano di entrare/uscire dalla scena |
+| 2026-06-29 | FE struttura/store | Componenti: `App`(+HUD) · `three/{Scene,Globe,Atmosphere}` · `shaders.ts`; util pura `lib/geo.ts` (`latLonToVec3`, testata, no dipendenza three); stato globale **Zustand** (`store/useStore`): `events`/`filters`/`autoRotate`/`globeView`/`selectedId`; tipi `types.ts` allineati a `api/schemas` (`Event`/`EventPage`/`Stats`) | `geo.ts` pura = testabile in CI senza WebGL (base per posizionare eventi in SEZ.7); store già pronto a ricevere `GET /events`; tipi FE = contratto API |
+| 2026-06-29 | FE tooling | Vite 5 + `@vitejs/plugin-react`; ESLint flat (recommended + `react-hooks` + `react-refresh`, globals browser); tsconfig split (`app`/`node`, `tsc -b`); Vitest env **node** (test solo funzioni pure) | Allineato al job CI `frontend` (Node 20, `lint`+`test --if-present`, niente build). Test in `node` → niente jsdom/canvas fragili in CI |
 | 2026-06-28 | Test API | Postgres+PostGIS **reale** (scelta utente): in CI un `service postgis/postgis:16-3.4` + step `alembic upgrade head`; in locale il docker già attivo. Isolamento per test: connessione+transazione dedicata, `DELETE FROM events` (visibile solo in-transaction) → DB vuoto deterministico, **rollback** a fine test (dati reali locali intatti). `get_session` sovrascritta sulla sessione del test | Esercita davvero `ST_DWithin`/trigger `geom`/enum nativi; il rollback non sporca né dipende dai dati locali. `httpx` (per `TestClient`) già presente nell'extra `[etl]` → nessuna nuova dipendenza |
 
 ---
@@ -82,6 +90,47 @@ sessioni future non la rimettono in discussione.
 ## 📝 Log delle sessioni
 
 Aggiungi una voce in cima a ogni fine-sezione.
+
+### 2026-06-29 — SEZIONE 6: Frontend base + globo 3D ✅
+- Cosa è stato fatto: scaffold completo Vite + React + TS in `web/` (sopra lo scaffold
+  eslint/vitest esistente) e **globo terrestre 3D** in stile command-center: superficie
+  con texture reali 4k (giorno + luci notturne NASA), **switch giorno/notte** (richiesta
+  utente), atmosfera fresnel a due strati (ciano+ambra), griglia tattica lat/lon
+  procedurale, campo stellato, camera con auto-rotazione + drag/zoom, HUD tattico, store
+  Zustand. I dati reali (epicentri/vulcani) arrivano in SEZIONE 7.
+- File creati/modificati:
+  - `web/package.json` (deps React/three/R3F/drei/zustand + dev vite/plugin-react/types/
+    eslint-plugin-react-*; script `dev`/`build`/`preview`), `web/package-lock.json`
+  - `web/vite.config.ts` (plugin react + config Vitest env node), `web/index.html`
+  - `web/tsconfig.json` + `tsconfig.app.json` + `tsconfig.node.json` (split, `tsc -b`)
+  - `web/eslint.config.js` (+ react-hooks, react-refresh, globals browser/node)
+  - `web/src/main.tsx` (entry + deep-link `?view=`), `App.tsx` (shell + HUD), `styles.css`
+  - `web/src/theme.ts` (palette ambra/ciano), `types.ts` (Event/EventPage/Stats = contratto API)
+  - `web/src/lib/geo.ts` (`latLonToVec3`, pura) + `geo.test.ts` (6 test)
+  - `web/src/store/useStore.ts` (Zustand: events/filters/autoRotate/globeView/selectedId)
+  - `web/src/three/Scene.tsx` (Canvas, luci, Stars, OrbitControls), `Globe.tsx`
+    (texture giorno/notte + griglia + fallback procedurale via ErrorBoundary/Suspense),
+    `Atmosphere.tsx` (fresnel), `shaders.ts` (GLSL atmosfera + griglia)
+  - `web/public/textures/{earth-map,earth-night}.jpg` (4k, ~0.8 MB) + `README.md` (attribuzione CC BY 4.0)
+  - `web/README.md` (aggiornato), rimossi placeholder `src/index.ts` + `src/smoke.test.ts`
+  - `docs/PROGRESS.md` (questo aggiornamento)
+- Scelte prese: vedi tabella Decisioni (R3F+drei definitiva; texture 4k NASA + fallback;
+  vista giorno/notte + `?view=`; atmosfera fresnel doppio strato + griglia shader;
+  OrbitControls auto-rotate+drag; struttura componenti + store Zustand + `geo.ts` pura;
+  tooling Vite/ESLint/Vitest allineato alla CI).
+- Verifiche eseguite:
+  - `cd web && npm install` → 126 pkg, ok
+  - `npm run lint` → eslint pulito · `npm run test` → **6 passed** (geo) · `npm run build`
+    (`tsc -b` + vite) → ok, bundle 985 KB / **273 KB gzip** (three pesante; code-split =
+    rifinitura SEZIONE 11)
+  - `npm run dev` → Vite ready (porta auto: 5173 occupata dal portfolio → 5183);
+    serve HTML + texture (200) + tutti i moduli, nessun errore transform in console
+  - **Screenshot headless** (Chrome `--use-angle=swiftshader`, WebGL): globo notturno
+    (luci città 4k nitide su Americhe, griglia/atmosfera ciano, HUD) e diurno (Terra
+    realistica blu/verde, nuvole) — switch funzionante via `?view=day|night`
+- Problemi aperti / TODO: push in attesa di ok (commit doc + SEZIONE 9 + SEZIONE 6).
+  Bundle three >500 KB (warning Vite): valutare code-split/manualChunks in SEZIONE 11.
+  `VITE_API_URL` non ancora consumato (data fetching = SEZIONE 7).
 
 ### 2026-06-28 — SEZIONE 9: API FastAPI completa ✅
 - Cosa è stato fatto: API FastAPI che serve gli eventi unificati con filtri spaziali/
@@ -284,6 +333,8 @@ TEMPLATE voce di log:
       poi impostare il secret `DATABASE_URL` su GitHub (SEZIONE 10).
 - [ ] **CORS prod**: aggiungere l'origin Vercel valorizzando `CORS_ALLOW_ORIGINS`
       sul backend in SEZIONE 10 (env, non hard-coded).
-- [ ] Confermare libreria 3D definitiva (SEZIONE 6).
-- [ ] Il FE (SEZIONE 6+) consuma `GET /events` (envelope `EventPage`) e `GET /stats`;
-      `VITE_API_URL` → backend (default dev `http://localhost:8000`).
+- [x] ~~Confermare libreria 3D definitiva (SEZIONE 6).~~ → **R3F v8 + drei v9 + three 0.169** (vedi Decisioni 2026-06-29).
+- [ ] Il FE consuma `GET /events` (envelope `EventPage`) e `GET /stats` in **SEZIONE 7**;
+      `VITE_API_URL` → backend (default dev `http://localhost:8000`). Tipi già pronti in
+      `web/src/types.ts`, store Zustand pronto a ricevere gli eventi.
+- [ ] Bundle FE: chunk three.js >500 KB → valutare code-split/`manualChunks` in SEZIONE 11.

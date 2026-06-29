@@ -1,0 +1,201 @@
+:root {
+  --bg: #05070a;
+  --panel: #0a0f16;
+  --amber: #ffb000;
+  --cyan: #38e1ff;
+  --text: #c8d6e5;
+  --text-dim: #5b6b7d;
+  --grid-line: rgba(56, 225, 255, 0.12);
+  font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Code", Menlo, Consolas,
+    monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.app {
+  position: relative;
+  height: 100vh;
+  width: 100vw;
+}
+
+.app canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* Subtle scanline / grid vignette per il look tattico (non interattivo). */
+.app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 120% at 50% 40%, transparent 55%, rgba(0, 0, 0, 0.55) 100%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.12) 2px 3px);
+  mix-blend-mode: multiply;
+}
+
+/* ---- HUD overlay ---- */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  padding: clamp(12px, 2.2vw, 28px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.hud-top,
+.hud-bottom {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hud-bottom {
+  align-items: flex-end;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  letter-spacing: 0.18em;
+}
+
+.brand-mark {
+  color: var(--amber);
+  font-size: 18px;
+  text-shadow: 0 0 12px rgba(255, 176, 0, 0.7);
+}
+
+.brand-name {
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: 0 0 14px rgba(56, 225, 255, 0.35);
+}
+
+.brand-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.3em;
+}
+
+.hud-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--cyan);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.hint {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--text-dim);
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+}
+
+.toggle {
+  pointer-events: auto;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+  background: rgba(10, 15, 22, 0.6);
+  border: 1px solid rgba(56, 225, 255, 0.25);
+  padding: 7px 12px;
+  border-radius: 3px;
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.toggle.on {
+  color: var(--cyan);
+  border-color: rgba(56, 225, 255, 0.6);
+  box-shadow: 0 0 14px rgba(56, 225, 255, 0.25);
+}
+
+.toggle:hover {
+  color: var(--text);
+}
+
+/* Angoli stile mirino */
+.corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(56, 225, 255, 0.35);
+}
+
+.corner.tl {
+  top: 14px;
+  left: 14px;
+  border-right: none;
+  border-bottom: none;
+}
+.corner.tr {
+  top: 14px;
+  right: 14px;
+  border-left: none;
+  border-bottom: none;
+}
+.corner.bl {
+  bottom: 14px;
+  left: 14px;
+  border-right: none;
+  border-top: none;
+}
+.corner.br {
+  bottom: 14px;
+  right: 14px;
+  border-left: none;
+  border-top: none;
+}
