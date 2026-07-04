@@ -29,6 +29,12 @@ export function severityColor(severity: number | null | undefined): RGB {
   return s <= 0.5 ? mix(LOW, MID, s / 0.5) : mix(MID, HIGH, (s - 0.5) / 0.5);
 }
 
+/** Stesso gradiente severità ma come stringa CSS `rgb()`, per i componenti DOM (tooltip, pannelli). */
+export function severityCss(severity: number | null | undefined): string {
+  const [r, g, b] = severityColor(severity);
+  return `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)})`;
+}
+
 /**
  * Dimensione (in frazione del raggio del globo) di un epicentro a partire dalla magnitudo.
  * Magnitudo tipiche 1..8; clampata a [0..8]. `null` → dimensione minima.

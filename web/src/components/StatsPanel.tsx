@@ -1,13 +1,39 @@
 // Pannello SITREP: statistiche 24h/7g da GET /stats (o derivate in mock/offline).
-// Layout a griglia 2×2 nello stile command-center. Gestisce loading/errore.
+// Card shadcn con griglia KPI 2×2. Gestisce loading/errore.
 
-import { useStatsLoader } from "../hooks/useStatsLoader";
+import { Activity, Gauge, Layers, Mountain } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-function Metric({ label, value, accent }: { label: string; value: string; accent?: "amber" }) {
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useStatsLoader } from "@/hooks/useStatsLoader";
+import { cn } from "@/lib/utils";
+
+function Metric({
+  icon: Icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
   return (
-    <div className="metric">
-      <span className="metric-label">{label}</span>
-      <span className={`metric-value ${accent ?? ""}`}>{value}</span>
+    <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <Icon className="size-3" />
+        <span className="text-[10px] font-medium uppercase tracking-[0.12em]">{label}</span>
+      </div>
+      <div
+        className={cn(
+          "mt-1.5 font-mono text-2xl font-semibold leading-none tabular-nums",
+          accent ? "text-warning" : "text-foreground",
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -15,37 +41,52 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
 export function StatsPanel() {
   const { stats, status, source } = useStatsLoader();
 
-  let tag: { text: string; cls: string } | null = null;
+  let tag: { text: string; variant: "muted" | "warning" } | null = null;
   if (source === "derived") {
     tag =
       status === "error"
-        ? { text: "OFFLINE", cls: "warn" }
-        : { text: "DERIVED", cls: "dim" };
+        ? { text: "Offline", variant: "warning" }
+        : { text: "Derivato", variant: "muted" };
   }
 
   return (
-    <section className="panel stats-panel" aria-label="Statistiche 24 ore">
-      <header className="panel-head">
-        <span className="panel-title">SITREP · 24H</span>
-        {tag && <span className={`panel-tag ${tag.cls}`}>{tag.text}</span>}
-      </header>
+    <Card className="glass pointer-events-auto gap-0 py-0" aria-label="Statistiche 24 ore">
+      <CardHeader className="flex-row items-center justify-between space-y-0 px-3.5 py-2.5">
+        <span className="eyebrow text-foreground/80">SITREP · 24h</span>
+        {tag && <Badge variant={tag.variant}>{tag.text}</Badge>}
+      </CardHeader>
 
-      {status === "loading" ? (
-        <div className="panel-msg">ACQUIRING…</div>
-      ) : status === "error" && !stats ? (
-        <div className="panel-msg warn">STATS UNAVAILABLE</div>
-      ) : (
-        <div className="metric-grid">
-          <Metric label="SEISMIC 24H" value={String(stats?.earthquakes_24h ?? 0)} />
-          <Metric
-            label="MAX MAG 24H"
-            value={stats?.max_magnitude_24h != null ? stats.max_magnitude_24h.toFixed(1) : "—"}
-            accent="amber"
-          />
-          <Metric label="EVENTS 7D" value={String(stats?.events_7d ?? 0)} />
-          <Metric label="VOLCANOES 7D" value={String(stats?.active_volcanoes_7d ?? 0)} />
-        </div>
-      )}
-    </section>
+      <CardContent className="px-3.5 pb-3.5 pt-0">
+        {status === "loading" ? (
+          <div className="grid grid-cols-2 gap-2.5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-[68px] animate-pulse rounded-lg bg-muted/40" />
+            ))}
+          </div>
+        ) : status === "error" && !stats ? (
+          <p className="py-3 text-center text-xs text-warning">Statistiche non disponibili</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2.5">
+            <Metric
+              icon={Activity}
+              label="Sismici 24h"
+              value={String(stats?.earthquakes_24h ?? 0)}
+            />
+            <Metric
+              icon={Gauge}
+              label="Mag max 24h"
+              value={stats?.max_magnitude_24h != null ? stats.max_magnitude_24h.toFixed(1) : "—"}
+              accent
+            />
+            <Metric icon={Layers} label="Eventi 7g" value={String(stats?.events_7d ?? 0)} />
+            <Metric
+              icon={Mountain}
+              label="Vulcani 7g"
+              value={String(stats?.active_volcanoes_7d ?? 0)}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

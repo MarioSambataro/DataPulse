@@ -13,10 +13,10 @@ const NIGHT_URL = "/textures/earth-night.jpg";
 function GridOverlay({ radius }: { radius: number }) {
   const uniforms = useMemo(
     () => ({
-      uColor: { value: new THREE.Color(palette.cyan) },
+      uColor: { value: new THREE.Color(palette.grid) },
       uLat: { value: 18 }, // paralleli ogni 10°
       uLon: { value: 36 }, // meridiani ogni 10°
-      uOpacity: { value: 0.22 },
+      uOpacity: { value: 0.1 },
     }),
     [],
   );
@@ -58,11 +58,13 @@ function TexturedGlobe({ radius }: { radius: number }) {
       <meshStandardMaterial
         map={mapTex}
         emissiveMap={isDay ? mapTex : nightTex}
-        emissive={new THREE.Color(isDay ? "#88a6c4" : palette.amber)}
-        emissiveIntensity={isDay ? 0.12 : 1.7}
-        color={new THREE.Color(isDay ? "#dfe9f5" : "#243447")}
-        roughness={isDay ? 0.78 : 0.9}
-        metalness={0.05}
+        // Day: earthshine neutro appena percettibile (continenti leggibili oltre il
+        // terminatore senza velare i colori veri). Night: luci città meno sparate.
+        emissive={new THREE.Color(isDay ? "#5f7d9e" : palette.amber)}
+        emissiveIntensity={isDay ? 0.08 : 1.35}
+        color={new THREE.Color(isDay ? "#f4f7fa" : "#26374e")}
+        roughness={isDay ? 0.62 : 0.9}
+        metalness={0.04}
       />
     </mesh>
   );
@@ -75,7 +77,7 @@ function ProceduralGlobe({ radius }: { radius: number }) {
       <sphereGeometry args={[1, 64, 64]} />
       <meshStandardMaterial
         color={new THREE.Color("#0c1a26")}
-        emissive={new THREE.Color(palette.cyanDim)}
+        emissive={new THREE.Color(palette.acidDim)}
         emissiveIntensity={0.25}
         roughness={1}
         metalness={0}

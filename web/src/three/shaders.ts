@@ -2,30 +2,40 @@
 // il rendering React resta pulito e i sorgenti shader sono riusabili.
 
 /**
- * Atmosfera fresnel: sfera leggermente più grande, renderizzata sul BackSide con
- * blending additivo. Il bordo (dove la normale è perpendicolare alla vista) si
- * illumina → alone luminoso attorno al pianeta.
+ * Atmosfera in due passate, ispirata allo scattering reale (niente "alone neon"):
+ *  - passata esterna (BackSide): banda sottile di cielo appena oltre il lembo,
+ *    che decade rapidamente verso lo spazio;
+ *  - passata interna (FrontSide, sul globo): velo di scattering che tinge di blu
+ *    solo il bordo del disco, come nelle foto satellitari.
+ * Entrambe sono modulate da uSunDir: l'atmosfera si accende sul lato illuminato
+ * e quasi scompare in ombra → l'occhio la legge come fisica, non come glow.
  */
 export const atmosphereVertex = /* glsl */ `
-  varying vec3 vNormal;
-  varying vec3 vView;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
   void main() {
-    vNormal = normalize(normalMatrix * normal);
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vView = normalize(-mv.xyz);
-    gl_Position = projectionMatrix * mv;
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `;
 
 export const atmosphereFragment = /* glsl */ `
   uniform vec3 uColor;
+  uniform vec3 uSunDir;
   uniform float uPower;
   uniform float uIntensity;
-  varying vec3 vNormal;
-  varying vec3 vView;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
   void main() {
-    float fresnel = pow(1.0 - abs(dot(vView, vNormal)), uPower);
-    gl_FragColor = vec4(uColor, fresnel * uIntensity);
+    vec3 n = normalize(vWorldNormal);
+    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+    float rim = pow(1.0 - abs(dot(viewDir, n)), uPower);
+    // Terminatore morbido: piena luce sul lato sole, residuo minimo in ombra.
+    float day = smoothstep(-0.35, 0.45, dot(n, uSunDir));
+    float a = rim * uIntensity * mix(0.05, 1.0, day);
+    gl_FragColor = vec4(uColor * a, a);
   }
 `;
 
