@@ -4,6 +4,10 @@
 [![ETL Earthquakes](https://github.com/MarioSambataro/DataPulse/actions/workflows/etl-earthquakes.yml/badge.svg)](https://github.com/MarioSambataro/DataPulse/actions/workflows/etl-earthquakes.yml)
 [![ETL Volcanoes](https://github.com/MarioSambataro/DataPulse/actions/workflows/etl-volcanoes.yml/badge.svg)](https://github.com/MarioSambataro/DataPulse/actions/workflows/etl-volcanoes.yml)
 
+[Live demo](https://data-pulse-tau.vercel.app) ·
+[API status](https://datapulse-api-09py.onrender.com/status) ·
+[Swagger](https://datapulse-api-09py.onrender.com/docs)
+
 Console web di monitoraggio geotettonico che unifica terremoti USGS e attività
 vulcanica Smithsonian GVP in un globo 3D interattivo, con feed live, filtri
 geospaziali, replay temporale e osservabilità dell'intera pipeline.
