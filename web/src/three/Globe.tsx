@@ -1,24 +1,23 @@
 import { useTexture } from "@react-three/drei";
+import { useThree } from "@react-three/fiber";
 import { Component, type ReactNode, Suspense, useMemo } from "react";
 import * as THREE from "three";
 
-import { useStore } from "../store/useStore";
 import { palette } from "../theme";
 import { gridFragment, gridVertex } from "./shaders";
 
-const MAP_URL = "/textures/earth-map.jpg";
-const NIGHT_URL = "/textures/earth-night.jpg";
+const MAP_URL = "/textures/earth-map-hd.jpg";
+const NIGHT_URL = "/textures/earth-night-hd.jpg";
 
-/** Griglia tattica lat/lon procedurale sovrapposta alla superficie. */
-function GridOverlay({ radius }: { radius: number }) {
+function GridOverlay({ radius, daytime }: { radius: number; daytime: boolean }) {
   const uniforms = useMemo(
     () => ({
-      uColor: { value: new THREE.Color(palette.grid) },
-      uLat: { value: 18 }, // paralleli ogni 10°
-      uLon: { value: 36 }, // meridiani ogni 10°
-      uOpacity: { value: 0.1 },
+      uColor: { value: new THREE.Color(daytime ? "#5d8998" : palette.grid) },
+      uLat: { value: 12 },
+      uLon: { value: 24 },
+      uOpacity: { value: daytime ? 0.055 : 0.07 },
     }),
-    [],
+    [daytime],
   );
   return (
     <mesh scale={radius * 1.002}>
@@ -35,42 +34,39 @@ function GridOverlay({ radius }: { radius: number }) {
   );
 }
 
-/**
- * Globo con texture reali, due modalità:
- *  - night: mappa diurna scurita (#243447) + luci notturne emissive (ambra) → look tattico.
- *  - day:   Terra reale a piena luce; leggero earthshine emissivo sul lato in ombra
- *           così i continenti restano leggibili anche oltre il terminatore.
- */
-function TexturedGlobe({ radius }: { radius: number }) {
-  const globeView = useStore((s) => s.globeView);
+/** Surface shader: the lit texture, city lights and terminator all follow the sun. */
+function TexturedGlobe({ radius, daytime }: { radius: number; daytime: boolean }) {
   const [mapTex, nightTex] = useTexture([MAP_URL, NIGHT_URL]);
+  const gl = useThree((state) => state.gl);
   useMemo(() => {
-    for (const t of [mapTex, nightTex]) {
-      t.colorSpace = THREE.SRGBColorSpace;
-      t.anisotropy = 8;
+    for (const texture of [mapTex, nightTex]) {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = Math.min(12, gl.capabilities.getMaxAnisotropy());
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
     }
-  }, [mapTex, nightTex]);
+  }, [gl, mapTex, nightTex]);
 
-  const isDay = globeView === "day";
   return (
     <mesh scale={radius}>
-      <sphereGeometry args={[1, 96, 96]} />
-      <meshStandardMaterial
-        map={mapTex}
-        emissiveMap={isDay ? mapTex : nightTex}
-        // Day: earthshine neutro appena percettibile (continenti leggibili oltre il
-        // terminatore senza velare i colori veri). Night: luci città meno sparate.
-        emissive={new THREE.Color(isDay ? "#5f7d9e" : palette.amber)}
-        emissiveIntensity={isDay ? 0.08 : 1.35}
-        color={new THREE.Color(isDay ? "#f4f7fa" : "#26374e")}
-        roughness={isDay ? 0.62 : 0.9}
-        metalness={0.04}
+      <sphereGeometry args={[1, 160, 160]} />
+      <meshPhysicalMaterial
+        map={daytime ? mapTex : nightTex}
+        emissiveMap={nightTex}
+        emissive={new THREE.Color(daytime ? "#1c4f58" : "#ffe2b0")}
+        emissiveIntensity={daytime ? 0.035 : 0.72}
+        color={new THREE.Color(daytime ? "#c9f0f0" : "#b8c6df")}
+        bumpMap={mapTex}
+        bumpScale={daytime ? 0.018 : 0.012}
+        roughness={daytime ? 0.72 : 0.64}
+        metalness={0.01}
+        clearcoat={daytime ? 0.11 : 0.05}
+        clearcoatRoughness={0.42}
       />
     </mesh>
   );
 }
 
-/** Fallback procedurale (nessuna texture): sfera scura, la griglia dà il contesto. */
 function ProceduralGlobe({ radius }: { radius: number }) {
   return (
     <mesh scale={radius}>
@@ -86,7 +82,6 @@ function ProceduralGlobe({ radius }: { radius: number }) {
   );
 }
 
-/** Error boundary: se le texture falliscono, mostra il globo procedurale. */
 class GlobeBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -97,17 +92,16 @@ class GlobeBoundary extends Component<{ fallback: ReactNode; children: ReactNode
   }
 }
 
-/** Globo completo: superficie (texture o fallback) + griglia tattica. */
-export function Globe({ radius }: { radius: number }) {
+export function Globe({ radius, daytime }: { radius: number; daytime: boolean }) {
   const fallback = <ProceduralGlobe radius={radius} />;
   return (
     <group>
       <GlobeBoundary fallback={fallback}>
         <Suspense fallback={fallback}>
-          <TexturedGlobe radius={radius} />
+          <TexturedGlobe radius={radius} daytime={daytime} />
         </Suspense>
       </GlobeBoundary>
-      <GridOverlay radius={radius} />
+      <GridOverlay radius={radius} daytime={daytime} />
     </group>
   );
 }

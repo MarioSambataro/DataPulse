@@ -7,6 +7,7 @@ import { Activity, Mountain, Radio } from "lucide-react";
 import { useMemo } from "react";
 
 import { timeAgo } from "@/lib/format";
+import { useLocale } from "@/components/locale-provider";
 import { filterEvents } from "@/lib/filters";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/store/useStore";
@@ -19,10 +20,12 @@ function TickerItem({
   ev,
   selected,
   onSelect,
+  duplicate = false,
 }: {
   ev: Event;
   selected: boolean;
   onSelect: (id: string) => void;
+  duplicate?: boolean;
 }) {
   const isQuake = ev.event_type === "earthquake";
   return (
@@ -34,6 +37,8 @@ function TickerItem({
       )}
       onClick={() => onSelect(ev.id)}
       title={ev.title}
+      aria-hidden={duplicate || undefined}
+      tabIndex={duplicate ? -1 : 0}
     >
       {isQuake ? (
         <Activity className="size-3 text-primary" />
@@ -53,7 +58,10 @@ function TickerItem({
 
 function TickerFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-[76px] z-20 px-3 sm:bottom-20 sm:px-4">
+    <div
+      className="hud-in pointer-events-none absolute inset-x-0 bottom-[76px] z-20 px-3 sm:bottom-20 sm:px-4"
+      style={{ animationDelay: "1500ms" }}
+    >
       <div className="glass pointer-events-auto flex h-10 items-stretch overflow-hidden rounded-lg">
         <span className="flex shrink-0 items-center gap-1.5 bg-primary px-3.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-foreground">
           <Radio className="size-3" /> Live
@@ -65,6 +73,7 @@ function TickerFrame({ children }: { children: React.ReactNode }) {
 }
 
 export function EventTicker() {
+  const { t } = useLocale();
   const events = useStore((s) => s.events);
   const filters = useStore((s) => s.filters);
   const selectedId = useStore((s) => s.selectedId);
@@ -80,7 +89,7 @@ export function EventTicker() {
     return (
       <TickerFrame>
         <span className="flex items-center px-4 text-xs text-muted-foreground">
-          Nessun evento in vista
+          {t("noEvents")}
         </span>
       </TickerFrame>
     );
@@ -104,6 +113,7 @@ export function EventTicker() {
                 ev={ev}
                 selected={ev.id === selectedId}
                 onSelect={select}
+                duplicate={dup === 1}
               />
             )),
           )}

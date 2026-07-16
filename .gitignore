@@ -12,6 +12,16 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+test-results/
+playwright-report/
+
+# Visual QA intermedi (si versionano soltanto le due immagini portfolio)
+web/datapulse-*.png
+!web/datapulse-etna-live.png
+!web/datapulse-marker-night.png
+
+# Local agent configuration
+.claude/settings.local.json
 
 # Env / secrets
 .env

@@ -1,121 +1,130 @@
-# DataPulse — Deploy (SEZIONE 10)
+# DataPulse — Deploy gratuito completo
 
-Guida operativa per mettere online DataPulse. Architettura di produzione:
+Architettura di produzione per la demo portfolio:
 
+```text
+GitHub Actions (ETL) ──upsert──► Neon PostgreSQL + PostGIS ◄──read── Render FastAPI
+                                                                         ▲
+                                                                         │ HTTPS/CORS
+                                                               Vercel React/Vite
 ```
- GitHub Actions (cron ETL)  ──upsert──►  Postgres+PostGIS (Render)  ◄──read──  API FastAPI (Render, Docker)
-                                                                                      ▲
-                                                                                      │ HTTPS (CORS)
-                                                                          Frontend (Vercel, build statica Vite)
-```
 
-- **Backend API + Postgres** → **Render** (piano free).
-- **Frontend** → **Vercel** (build statica di `web/`).
-- **Cron ETL** → **GitHub Actions** (già pronti, SEZIONE 5): scrivono sul DB Render.
+- **Database persistente** → Neon Free.
+- **Backend API** → Render Free, immagine Docker del repository.
+- **Frontend** → Vercel Hobby, build statica della cartella `web/`.
+- **ETL** → GitHub Actions, gratuiti per il repository pubblico.
 
-> Perché Render: unico tra i due con un **free tier vero** (web service + Postgres gestito)
-> e supporto **PostGIS** (vincolo forte del progetto). Trade-off del free: il web service va
-> in **spin-down dopo ~15 min** di inattività (primo accesso ~50s di cold-start) e il
-> **Postgres free ha durata limitata** (va ricreato alla scadenza). Accettabile per un portfolio.
-
----
+Questa configurazione evita il Postgres Free di Render, che scade dopo 30 giorni.
+Il web service Render Free rimane adatto a una demo, ma va in sospensione dopo un
+periodo di inattività: il primo accesso può richiedere circa un minuto.
 
 ## 0. Prerequisiti
-- Account: [Render](https://render.com), [Vercel](https://vercel.com), GitHub (repo già su `origin`).
-- Repo pushato con i file di questa sezione (`Dockerfile`, `render.yaml`, `web/vercel.json`, ...).
 
----
+- Repository GitHub pubblico e aggiornato.
+- Account gratuiti Neon, Render e Vercel.
+- Nessun secret committato: `.env` è escluso da Git.
 
-## 1. Backend + DB su Render (Blueprint)
+## 1. Database Neon + PostGIS
 
-Il file [`render.yaml`](../render.yaml) descrive **entrambe** le risorse (DB + API).
+1. Neon Console → **New project**.
+2. Scegliere una regione europea vicina a Render, preferibilmente Frankfurt.
+3. Nel SQL Editor eseguire:
 
-1. Render Dashboard → **New** → **Blueprint**.
-2. Collega il repo `MarioSambataro/DataPulse`, branch `main`. Render legge `render.yaml`.
-3. Conferma la creazione di:
-   - `datapulse-db` — Postgres 16 free (region **frankfurt**).
-   - `datapulse-api` — web service Docker (builda `./Dockerfile`).
-4. **Apply**. Render builda l'immagine e avvia l'API. All'avvio l'entrypoint esegue
-   `alembic upgrade head` → crea l'estensione PostGIS, la tabella `events`, indici e trigger.
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS postgis;
+   SELECT postgis_version();
+   ```
 
-### PostGIS
-Il Postgres gestito di Render consente `CREATE EXTENSION postgis` (è nella allow-list). La
-migrazione iniziale lo fa da sola. **Verifica** dopo il primo deploy (Render → datapulse-db →
-*Connect* → PSQL): `SELECT postgis_version();` deve rispondere.
+4. Da **Connect** copiare la connection string **diretta**:
 
-### Variabili d'ambiente (Render → datapulse-api → Environment)
-| Variabile | Valore | Origine |
-|-----------|--------|---------|
-| `DATABASE_URL` | *(auto)* connection string **interna** del DB | iniettata dal blueprint |
-| `RUN_MIGRATIONS` | `1` | blueprint (migrazioni al boot) |
-| `CORS_ALLOW_ORIGINS` | `https://<tuo-progetto>.vercel.app` | **da impostare a mano** dopo lo step 2 |
+   ```text
+   postgresql://USER:PASSWORD@ENDPOINT.neon.tech/neondb?sslmode=require&channel_binding=require
+   ```
 
-> `CORS_ALLOW_ORIGINS` ha `sync:false`: non sta nel repo. Lo valorizzi quando conosci
-> l'URL Vercel (step 2). Niente origin hard-coded nel codice (`api/config.py` la legge da env).
+La stringa contiene credenziali: deve vivere soltanto nei secret dei provider.
 
-5. Annota l'URL pubblico dell'API: `https://datapulse-api.onrender.com` (varia col nome).
-   Controlla `GET /health` → `{"status":"ok"}` e `/docs` (Swagger).
+## 2. Backend FastAPI su Render
 
----
+Il file `render.yaml` crea un singolo servizio Docker `datapulse-api`.
 
-## 2. Frontend su Vercel
+1. Render Dashboard → **New → Blueprint**.
+2. Collegare il repository e il branch `main`.
+3. Durante la creazione valorizzare:
 
-1. Vercel → **Add New** → **Project** → importa il repo.
-2. **Root Directory** = `web` (il resto lo gestisce [`web/vercel.json`](../web/vercel.json): preset Vite, build `npm run build`, output `dist`).
-3. **Environment Variables**: `VITE_API_URL` = URL Render dello step 1
-   (es. `https://datapulse-api.onrender.com`). È build-time (Vite la inserisce nel bundle).
-4. **Deploy**. Ottieni l'URL pubblico, es. `https://datapulse.vercel.app`.
+   | Variabile | Valore |
+   |---|---|
+   | `DATABASE_URL` | connection string diretta Neon |
+   | `CORS_ALLOW_ORIGINS` | origin Vercel; temporaneamente `http://localhost:5173` |
+   | `RUN_MIGRATIONS` | già impostata a `1` nel Blueprint |
 
-### Chiudi il CORS
-Torna su Render → `datapulse-api` → Environment → `CORS_ALLOW_ORIGINS` =
-l'origin Vercel esatto (`https://datapulse.vercel.app`, **senza** slash finale).
-Più origin → separali con virgola. Salva → Render ridistribuisce.
+4. Applicare il Blueprint.
 
----
+All'avvio `docker-entrypoint.sh` esegue `alembic upgrade head`, creando schema,
+indici geografici e trigger sul database Neon. Il comando è idempotente.
 
-## 3. Cron ETL → DB di produzione (GitHub Actions)
+Verificare:
 
-I due workflow (`etl-earthquakes.yml`, `etl-volcanoes.yml`) leggono `secrets.DATABASE_URL`.
-
-1. Render → `datapulse-db` → copia la connection string **ESTERNA** (External Database URL).
-2. GitHub → repo → **Settings → Secrets and variables → Actions → New repository secret**:
-   - Nome: `DATABASE_URL`
-   - Valore: la connection string esterna. Se la connessione fallisce per TLS, appendi
-     `?sslmode=require`.
-3. Lancio manuale per popolare subito: **Actions** → *ETL earthquakes* → **Run workflow**
-   (poi *ETL volcanoes*). Da lì in poi girano da soli (orario / giornaliero).
-
-> Distinzione importante: l'**API** usa la URL **interna** (stessa region, no SSL, più veloce);
-> le **Actions** girano fuori da Render → serve la URL **esterna**.
-
----
-
-## 4. Verifica end-to-end
-1. Actions → i due run ETL passano (verde) → scrivono su `events`.
-2. API: `https://datapulse-api.onrender.com/events?limit=2` → envelope con dati;
-   `/stats` → conteggi non nulli.
-3. Frontend: apri l'URL Vercel → globo con epicentri/vulcani, ticker che scorre, SITREP
-   popolato (tag **non** `DERIVED`/`OFFLINE` = sta leggendo l'API reale).
-
----
-
-## Verifica locale dell'immagine (prima del deploy live)
-Senza account cloud, l'immagine si prova contro il Postgres del compose:
-
-```sh
-cp .env.example .env                 # se non esiste già
-docker compose up -d postgres        # DB + PostGIS
-docker compose up -d --build api     # builda il Dockerfile e avvia l'API
-curl http://localhost:8000/health    # {"status":"ok"}
-# /docs nel browser → Swagger
-docker compose logs api              # mostra "alembic upgrade head" all'avvio
+```text
+https://<servizio>.onrender.com/health
+https://<servizio>.onrender.com/status
+https://<servizio>.onrender.com/docs
 ```
 
----
+La chiave `DEEPSEEK_API_KEY` è opzionale. Se disponibile, aggiungerla soltanto in
+Render → Environment; non deve essere esposta a Vercel o GitHub.
 
-## Costi / limiti (free tier Render)
-- **Web service free**: spin-down dopo ~15 min idle, cold-start ~50s, 750h/mese.
-- **Postgres free**: storage e durata limitati (il DB free scade e va ricreato; ri-applicare
-  le migrazioni e rilanciare i cron ETL). Per "always-on" → upgrade a istanza a pagamento.
-- **Vercel Hobby**: build statica gratis, ampiamente sufficiente.
-- **GitHub Actions**: i cron rientrano nei minuti free dei repo pubblici.
+## 3. Frontend su Vercel
+
+1. Vercel → **Add New → Project** e importare il repository.
+2. Impostare **Root Directory** = `web`.
+3. Aggiungere la variabile build-time:
+
+   ```text
+   VITE_API_URL=https://<servizio>.onrender.com
+   ```
+
+4. Eseguire il deploy. `web/vercel.json` configura Vite, build e cartella `dist`.
+
+Quando l'URL definitivo è noto, tornare su Render e impostare:
+
+```text
+CORS_ALLOW_ORIGINS=https://<progetto>.vercel.app
+```
+
+L'origin deve essere esatto e senza slash finale. Salvare e ridistribuire l'API.
+
+## 4. ETL su GitHub Actions
+
+GitHub → repository → **Settings → Secrets and variables → Actions**:
+
+```text
+Name:  DATABASE_URL
+Value: connection string diretta Neon
+```
+
+Avviare manualmente, nell'ordine:
+
+1. **ETL Earthquakes (USGS)**;
+2. **ETL Volcanoes (GVP)**.
+
+I workflow continueranno poi con la schedulazione configurata. API ed ETL usano
+lo stesso database, quindi i dati appaiono nella dashboard senza passaggi aggiuntivi.
+
+## 5. Verifica end-to-end
+
+1. Entrambi i workflow ETL risultano verdi.
+2. `GET /events?limit=2` restituisce record.
+3. `GET /stats` restituisce conteggi valorizzati.
+4. `GET /status` riporta database `ok` e una ingestione recente.
+5. Il frontend mostra feed live, ticker, statistiche e marker sul globo.
+6. La console del browser non contiene errori CORS.
+
+## Limiti del percorso gratuito
+
+- Render Free sospende il backend inattivo; il primo caricamento può essere lento.
+- Neon Free offre risorse adatte a una demo, non a un carico produttivo continuo.
+- Vercel Hobby è destinato a progetti personali e portfolio.
+- Il dominio personalizzato è opzionale e il relativo acquisto non è gratuito.
+
+Per rendere il cold start comprensibile, il frontend deve mostrare uno stato di
+attesa e ritentare la richiesta invece di presentare immediatamente “feed offline”.

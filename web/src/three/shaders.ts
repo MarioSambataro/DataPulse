@@ -32,10 +32,15 @@ export const atmosphereFragment = /* glsl */ `
     vec3 n = normalize(vWorldNormal);
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
     float rim = pow(1.0 - abs(dot(viewDir, n)), uPower);
+    float NdotS = dot(n, uSunDir);
     // Terminatore morbido: piena luce sul lato sole, residuo minimo in ombra.
-    float day = smoothstep(-0.35, 0.45, dot(n, uSunDir));
+    float day = smoothstep(-0.35, 0.45, NdotS);
+    // Fascia crepuscolare: vicino al terminatore l'alone vira al caldo
+    // (scattering di Rayleigh "fake": alba/tramonto visti dallo spazio).
+    float twilight = 1.0 - smoothstep(0.0, 0.45, abs(NdotS));
+    vec3 col = mix(uColor, vec3(1.0, 0.55, 0.34), twilight * 0.55);
     float a = rim * uIntensity * mix(0.05, 1.0, day);
-    gl_FragColor = vec4(uColor * a, a);
+    gl_FragColor = vec4(col * a, a);
   }
 `;
 
@@ -77,5 +82,54 @@ export const gridFragment = /* glsl */ `
     float a = grid * uOpacity * rim;
     if (a < 0.01) discard;
     gl_FragColor = vec4(uColor, a);
+  }
+`;
+
+/** Surface shader: real maps fused with a sun-aligned terminator and city light emission. */
+export const earthVertex = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
+  void main() {
+    vUv = uv;
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+export const earthFragment = /* glsl */ `
+  uniform sampler2D uDayMap;
+  uniform sampler2D uNightMap;
+  uniform vec3 uSunDir;
+  uniform float uNightMode;
+  varying vec2 vUv;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
+
+  void main() {
+    vec3 normal = normalize(vWorldNormal);
+    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+    float NdotL = dot(normal, normalize(uSunDir));
+    float daylight = smoothstep(-0.16, 0.28, NdotL);
+    float nightness = 1.0 - smoothstep(-0.34, 0.08, NdotL);
+    float twilight = 1.0 - smoothstep(0.0, 0.32, abs(NdotL));
+
+    vec3 dayMap = texture2D(uDayMap, vUv).rgb;
+    vec3 nightMap = texture2D(uNightMap, vUv).rgb;
+    vec3 daylightColor = pow(dayMap, vec3(0.92));
+    daylightColor = mix(daylightColor * vec3(0.62, 0.79, 1.12), daylightColor, 0.68);
+    vec3 shadowColor = dayMap * vec3(0.055, 0.10, 0.18);
+    float cityMask = smoothstep(0.035, 0.30, max(max(nightMap.r, nightMap.g), nightMap.b));
+    vec3 cityGlow = mix(vec3(0.35, 0.72, 1.35), vec3(1.8, 0.48, 0.10), nightMap.r);
+    cityGlow *= cityMask * (0.45 + nightMap * 1.7);
+
+    vec3 surface = mix(shadowColor, daylightColor, daylight);
+    surface += cityGlow * nightness * mix(1.0, 1.55, uNightMode);
+    surface += vec3(0.34, 0.075, 0.018) * twilight * (0.10 + 0.25 * nightness);
+    float rim = pow(1.0 - max(dot(viewDir, normal), 0.0), 4.5);
+    surface += vec3(0.025, 0.10, 0.20) * rim * 0.48;
+    gl_FragColor = vec4(surface, 1.0);
   }
 `;

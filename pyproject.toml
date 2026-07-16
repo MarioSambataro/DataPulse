@@ -17,6 +17,8 @@ api = [
     "fastapi>=0.111",
     "pydantic>=2.7",
     "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "prometheus-client>=0.20",
 ]
 # DB & migrazioni (SEZIONE 2). psycopg v3 con binary per evitare build di libpq su Windows.
 db = [

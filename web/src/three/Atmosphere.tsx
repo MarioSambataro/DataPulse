@@ -6,6 +6,7 @@ import { atmosphereFragment, atmosphereVertex } from "./shaders";
 
 interface AtmosphereProps {
   radius: number;
+  daytime: boolean;
   /** Direzione del sole in coordinate mondo (deve combaciare con la directionalLight). */
   sunDirection: THREE.Vector3;
 }
@@ -50,24 +51,24 @@ function AtmospherePass({ scale, color, power, intensity, side, sunDirection }: 
  * Atmosfera del globo: banda esterna sottile oltre il lembo + scattering interno
  * sul bordo del disco. Blu freddo desaturato, sun-aware — vedi shaders.ts.
  */
-export function Atmosphere({ radius, sunDirection }: AtmosphereProps) {
+export function Atmosphere({ radius, daytime, sunDirection }: AtmosphereProps) {
   return (
     <group>
       {/* Scattering interno: tinge di blu solo il lembo del globo. */}
       <AtmospherePass
         scale={radius * 1.001}
-        color={palette.atmoInner}
-        power={3.5}
-        intensity={0.65}
+        color={daytime ? "#75b8c4" : palette.atmoInner}
+        power={daytime ? 4.25 : 3.8}
+        intensity={daytime ? 0.42 : 0.56}
         side={THREE.FrontSide}
         sunDirection={sunDirection}
       />
       {/* Banda esterna: sottile, decade in fretta — niente alone gonfio. */}
       <AtmospherePass
         scale={radius * 1.035}
-        color={palette.atmoOuter}
-        power={3.0}
-        intensity={0.5}
+        color={daytime ? "#b9e2e7" : palette.atmoOuter}
+        power={daytime ? 3.8 : 3.2}
+        intensity={daytime ? 0.25 : 0.38}
         side={THREE.BackSide}
         sunDirection={sunDirection}
       />

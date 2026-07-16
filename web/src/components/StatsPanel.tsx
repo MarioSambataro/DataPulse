@@ -4,6 +4,10 @@
 import { Activity, Gauge, Layers, Mountain } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import type { ReactNode } from "react";
+
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { useLocale } from "@/components/locale-provider";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useStatsLoader } from "@/hooks/useStatsLoader";
@@ -17,7 +21,7 @@ function Metric({
 }: {
   icon: LucideIcon;
   label: string;
-  value: string;
+  value: ReactNode;
   accent?: boolean;
 }) {
   return (
@@ -40,17 +44,18 @@ function Metric({
 
 export function StatsPanel() {
   const { stats, status, source } = useStatsLoader();
+  const { t } = useLocale();
 
   let tag: { text: string; variant: "muted" | "warning" } | null = null;
   if (source === "derived") {
     tag =
       status === "error"
-        ? { text: "Offline", variant: "warning" }
-        : { text: "Derivato", variant: "muted" };
+        ? { text: t("offline"), variant: "warning" }
+        : { text: t("derived"), variant: "muted" };
   }
 
   return (
-    <Card className="glass pointer-events-auto gap-0 py-0" aria-label="Statistiche 24 ore">
+    <Card className="glass pointer-events-auto gap-0 py-0" aria-label={t("stats24")}>
       <CardHeader className="flex-row items-center justify-between space-y-0 px-3.5 py-2.5">
         <span className="eyebrow text-foreground/80">SITREP · 24h</span>
         {tag && <Badge variant={tag.variant}>{tag.text}</Badge>}
@@ -64,25 +69,35 @@ export function StatsPanel() {
             ))}
           </div>
         ) : status === "error" && !stats ? (
-          <p className="py-3 text-center text-xs text-warning">Statistiche non disponibili</p>
+          <p className="py-3 text-center text-xs text-warning">{t("statsUnavailable")}</p>
         ) : (
           <div className="grid grid-cols-2 gap-2.5">
             <Metric
               icon={Activity}
-              label="Sismici 24h"
-              value={String(stats?.earthquakes_24h ?? 0)}
+              label={t("earthquakes24")}
+              value={<AnimatedNumber value={stats?.earthquakes_24h ?? 0} />}
             />
             <Metric
               icon={Gauge}
-              label="Mag max 24h"
-              value={stats?.max_magnitude_24h != null ? stats.max_magnitude_24h.toFixed(1) : "—"}
+              label={t("maxMag24")}
+              value={
+                stats?.max_magnitude_24h != null ? (
+                  <AnimatedNumber value={stats.max_magnitude_24h} decimals={1} />
+                ) : (
+                  "—"
+                )
+              }
               accent
             />
-            <Metric icon={Layers} label="Eventi 7g" value={String(stats?.events_7d ?? 0)} />
+            <Metric
+              icon={Layers}
+              label={t("events7d")}
+              value={<AnimatedNumber value={stats?.events_7d ?? 0} />}
+            />
             <Metric
               icon={Mountain}
-              label="Vulcani 7g"
-              value={String(stats?.active_volcanoes_7d ?? 0)}
+              label={t("volcanoes7d")}
+              value={<AnimatedNumber value={stats?.active_volcanoes_7d ?? 0} />}
             />
           </div>
         )}
