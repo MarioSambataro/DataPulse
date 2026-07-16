@@ -57,6 +57,27 @@ class EventPage(BaseModel):
     offset: int = Field(ge=0, description="Offset richiesto.")
 
 
+class Status(BaseModel):
+    """Risposta di `GET /status` (osservabilità: DB + freschezza dati).
+
+    `last_event_age_s` è l'età dell'ultimo evento INGERITO (non accaduto): è la
+    metrica onesta di "quanto sono freschi i dati", perché misura l'ultima
+    scrittura dei cron ETL. `status` è "degraded" se il DB non risponde.
+    """
+
+    status: str = Field(description='"ok" oppure "degraded".')
+    version: str
+    uptime_s: float = Field(ge=0, description="Secondi dall'avvio del processo API.")
+    db: str = Field(description='"ok" oppure "error".')
+    last_ingested_at: datetime | None = Field(
+        default=None, description="Timestamp dell'ultima ingestione ETL."
+    )
+    last_event_age_s: float | None = Field(
+        default=None, ge=0, description="Età in secondi dell'ultimo evento ingerito."
+    )
+    events_total: int | None = Field(default=None, ge=0, description="Righe totali in events.")
+
+
 class Stats(BaseModel):
     """Aggregati di `GET /stats`.
 

@@ -8,13 +8,14 @@ import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useLocale } from "@/components/locale-provider";
 import { severityCss } from "@/lib/severity";
 import { useStore } from "@/store/useStore";
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, locale: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("it-IT", {
+  return d.toLocaleString(locale, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -34,6 +35,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export function DetailPanel() {
+  const { t, numberLocale } = useLocale();
   const selectedId = useStore((s) => s.selectedId);
   const events = useStore((s) => s.events);
   const select = useStore((s) => s.select);
@@ -68,14 +70,14 @@ export function DetailPanel() {
             style={{ background: sev, boxShadow: `0 0 6px ${sev}` }}
           />
           <TypeIcon className="size-3.5 text-muted-foreground" />
-          <span className="eyebrow">{isQuake ? "Evento sismico" : "Attività vulcanica"}</span>
+          <span className="eyebrow">{isQuake ? t("seismicEvent") : t("volcanicActivity")}</span>
         </span>
         <Button
           variant="ghost"
           size="icon"
           className="size-6 text-muted-foreground"
           onClick={() => select(null)}
-          aria-label="Chiudi"
+          aria-label={t("close")}
         >
           <X className="size-3.5" />
         </Button>
@@ -87,13 +89,13 @@ export function DetailPanel() {
         {isQuake && (
           <div className="mt-3 flex items-end justify-between gap-4">
             <div>
-              <div className="eyebrow">Magnitudo</div>
+              <div className="eyebrow">{t("magnitude")}</div>
               <div className="mt-1 font-mono text-3xl font-semibold leading-none tracking-tight">
                 {event.magnitude?.toFixed(1) ?? "—"}
               </div>
             </div>
             <div className="text-right">
-              <div className="eyebrow">Profondità</div>
+              <div className="eyebrow">{t("depth")}</div>
               <div className="mt-1 font-mono text-sm leading-none">
                 {event.depth_km != null ? `${event.depth_km.toFixed(0)} km` : "—"}
               </div>
@@ -115,10 +117,10 @@ export function DetailPanel() {
         </div>
 
         <dl className="mt-3 space-y-2 border-t border-border/60 pt-3">
-          <Row label="Luogo">
+          <Row label={t("place")}>
             <span className="line-clamp-2 font-sans">{event.place ?? "—"}</span>
           </Row>
-          <Row label="Ora UTC">{formatTime(event.occurred_at)}</Row>
+          <Row label={t("timeUtc")}>{formatTime(event.occurred_at, numberLocale)}</Row>
           <Row label="Lat / Lon">
             {event.lat.toFixed(2)}° · {event.lon.toFixed(2)}°
           </Row>

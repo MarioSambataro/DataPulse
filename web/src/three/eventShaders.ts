@@ -72,6 +72,64 @@ export const epicenterFragment = /* glsl */ `
   }
 `;
 
+// Onde d'urto di superficie per i sismi forti: quad istanziati molto più larghi
+// dei ping, con anelli concentrici lenti che si espandono dall'epicentro. Il
+// vertex shader riavvolge il quad sulla sfera (proietta ogni vertice a raggio
+// costante) così gli anelli abbracciano la curvatura invece di fluttuare
+// tangenti; uSurface è il raggio di appoggio (globo + epsilon).
+export const shockwaveVertex = /* glsl */ `
+  attribute vec3 aColor;
+  attribute float aPhase;
+  attribute float aMag;
+  uniform float uSurface;
+  varying vec2 vUv;
+  varying vec3 vColor;
+  varying float vPhase;
+  varying float vMag;
+  void main() {
+    vUv = uv;
+    vColor = aColor;
+    vPhase = aPhase;
+    vMag = aMag;
+    vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    wp.xyz = normalize(wp.xyz) * uSurface; // avvolge il quad sulla superficie
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+export const shockwaveFragment = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vColor;
+  varying float vPhase;
+  varying float vMag;
+
+  // Fronte d'onda: anello che si allarga e si dissipa espandendosi.
+  float ring(float r, float t) {
+    float w = 0.02 + 0.10 * t; // il fronte si sfrangia man mano che viaggia
+    float d = abs(r - t);
+    return smoothstep(w, 0.0, d) * pow(max(1.0 - t, 0.0), 1.8);
+  }
+
+  void main() {
+    float r = length(vUv - 0.5) * 2.0;
+    if (r > 1.0) discard;
+
+    // Tre fronti sfalsati di un terzo di periodo; i forti si propagano più in fretta.
+    float speed = mix(0.10, 0.16, vMag);
+    float waves = ring(r, fract(uTime * speed + vPhase))
+                + ring(r, fract(uTime * speed + vPhase + 0.333)) * 0.7
+                + ring(r, fract(uTime * speed + vPhase + 0.666)) * 0.45;
+
+    float alpha = waves * (0.26 + 0.34 * vMag);
+    if (alpha < 0.01) discard;
+
+    vec3 col = mix(vColor, vec3(1.0), 0.25);
+    gl_FragColor = vec4(col * alpha, alpha); // additive: il nero non sporca
+  }
+`;
+
 // Colonne di luce (InstancedMesh di cilindri rastremati, base sulla superficie).
 // Additive, luminose alla base e trasparenti in cima; il bordo si ammorbidisce
 // con un fresnel così il cilindro non mostra la silhouette dura.

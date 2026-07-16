@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
+import { LocaleProvider } from "./components/locale-provider";
 import { ThemeProvider } from "./components/theme-provider";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useStore } from "./store/useStore";
@@ -17,9 +18,11 @@ if (!root) throw new Error("Root element #root non trovato");
 createRoot(root).render(
   <StrictMode>
     <ThemeProvider defaultTheme="dark">
-      <TooltipProvider delayDuration={200}>
-        <App />
-      </TooltipProvider>
+      <LocaleProvider>
+        <TooltipProvider delayDuration={200}>
+          <App />
+        </TooltipProvider>
+      </LocaleProvider>
     </ThemeProvider>
   </StrictMode>,
 );

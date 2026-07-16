@@ -3,6 +3,7 @@
 // Design "callout cartografico": chip compatto + leader line verso il marker.
 
 import { severityCss } from "@/lib/severity";
+import { useLocale, type Locale } from "@/components/locale-provider";
 import type { Event } from "@/types";
 
 /** `38.42°N 14.96°E` — formato cartografico compatto. */
@@ -13,25 +14,26 @@ function formatCoords(lat: number, lon: number): string {
 }
 
 /** Tempo relativo compatto in italiano ("adesso", "12 min", "3 h", "2 g"). */
-function timeAgo(iso: string): string | null {
+function timeAgo(iso: string, locale: Locale, nowLabel: string): string | null {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return null;
   const mins = Math.max(0, Math.round((Date.now() - t) / 60_000));
-  if (mins < 1) return "adesso";
+  if (mins < 1) return nowLabel;
   if (mins < 60) return `${mins} min`;
   const hours = Math.round(mins / 60);
   if (hours < 24) return `${hours} h`;
-  return `${Math.round(hours / 24)} g`;
+  return `${Math.round(hours / 24)} ${locale === "it" ? "g" : "d"}`;
 }
 
 export function EventHoverCard({ event }: { event: Event }) {
+  const { locale, t } = useLocale();
   const isQuake = event.event_type === "earthquake";
   const dot = severityCss(event.severity);
-  const ago = timeAgo(event.occurred_at);
+  const ago = timeAgo(event.occurred_at, locale, t("now"));
 
   const kind = isQuake
-    ? `Sisma${event.magnitude != null ? ` · M ${event.magnitude.toFixed(1)}` : ""}`
-    : "Vulcano";
+    ? `${t("quake")}${event.magnitude != null ? ` · M ${event.magnitude.toFixed(1)}` : ""}`
+    : t("volcano");
 
   return (
     // Ancorato al punto proiettato: card sopra, leader line che scende al marker.

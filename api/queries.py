@@ -138,6 +138,23 @@ def list_events(
     return rows, total
 
 
+def events_since(session: Session, watermark: datetime, limit: int = 200) -> list[Event]:
+    """Eventi ingeriti DOPO `watermark`, in ordine di ingestione (per il feed SSE).
+
+    Il watermark è su `ingested_at` (non `occurred_at`): l'ETL può ingerire eventi
+    retrodatati, e il feed live deve spingere ciò che è NUOVO nel DB, non ciò che è
+    appena accaduto. Ordinamento ASC così il client avanza il watermark leggendo
+    l'ultimo elemento.
+    """
+    stmt = (
+        select(Event)
+        .where(Event.ingested_at > watermark)
+        .order_by(Event.ingested_at.asc(), Event.id.asc())
+        .limit(limit)
+    )
+    return list(session.scalars(stmt).all())
+
+
 def compute_stats(session: Session) -> dict:
     """Aggregati per `GET /stats` (finestre rolling 24h/7g su `occurred_at`)."""
     now = session.scalar(select(func.now()))

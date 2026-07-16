@@ -40,6 +40,43 @@ export interface Stats {
   active_volcanoes_7d: number;
 }
 
+/** Risposta di GET /status (osservabilità: DB + freschezza dati ETL). */
+export interface ApiStatus {
+  status: "ok" | "degraded";
+  version: string;
+  uptime_s: number;
+  db: "ok" | "error";
+  last_ingested_at: string | null;
+  last_event_age_s: number | null;
+  events_total: number | null;
+}
+
+/** Filtri (sottoinsieme dei parametri di GET /events) prodotti da POST /ai/query. */
+export interface AiFilters {
+  event_type: EventType | null;
+  min_magnitude: number | null;
+  start: string | null;
+  end: string | null;
+  near_lat: number | null;
+  near_lon: number | null;
+  radius_km: number | null;
+}
+
+/** Risposta di POST /ai/query. */
+export interface AiQueryResult {
+  answer: string;
+  filters: AiFilters;
+  model: string;
+}
+
+/** Risposta di GET /ai/briefing. */
+export interface AiBriefing {
+  briefing: string;
+  generated_at: string;
+  model: string;
+  cached: boolean;
+}
+
 /** Finestra temporale del filtro (su occurred_at, rolling rispetto a "ora"). */
 export type TimeWindow = "24h" | "7d" | "all";
 
