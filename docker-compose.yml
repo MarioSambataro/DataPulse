@@ -1,6 +1,6 @@
 services:
   postgres:
-    # Immagine con PostGIS preinstallato (estensione abilitata via migrazione Alembic).
+    # Image with PostGIS installed; Alembic enables the extension.
     image: postgis/postgis:16-3.4
     container_name: datapulse-postgres
     restart: unless-stopped
@@ -18,8 +18,8 @@ services:
       timeout: 5s
       retries: 5
 
-  # API FastAPI — stessa immagine usata in produzione (Dockerfile root, SEZIONE 10).
-  # Serve a verificare in locale l'immagine contro il Postgres del compose:
+  # FastAPI service using the same image as production.
+  # Verify it locally against the Compose PostgreSQL service:
   #   docker compose up -d --build api   →  http://localhost:8000/health e /docs
   api:
     build:
@@ -30,8 +30,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # Dentro la rete del compose il DB è l'host 'postgres', non 'localhost'.
-      # Questo override vince sul DATABASE_URL del .env (che punta a localhost).
+      # Inside the Compose network, the database host is `postgres` rather than localhost.
+      # This service-level value overrides the host-oriented .env URL.
       DATABASE_URL: postgresql://${POSTGRES_USER:-datapulse}:${POSTGRES_PASSWORD:-datapulse}@postgres:5432/${POSTGRES_DB:-datapulse}
       RUN_MIGRATIONS: "1"
     depends_on:
@@ -40,8 +40,8 @@ services:
     ports:
       - "8000:8000"
 
-  # Il frontend (web/) NON gira qui: in produzione è build statica su Vercel
-  # (vercel.json + VITE_API_URL → backend pubblico). In locale: cd web && npm run dev.
+  # The frontend is not part of Compose. Vercel serves its production static build;
+  # run it locally with `cd web && npm run dev`.
 
 volumes:
   postgres_data:

@@ -6,7 +6,7 @@ import { latLonToVec3 } from "../lib/geo";
 import type { RGB } from "../lib/severity";
 import { beamFragment, beamVertex } from "./eventShaders";
 
-/** Specifica di una colonna di luce (dimensioni in unità scena). */
+/** Light-column dimensions in scene units. */
 export interface BeamSpec {
   lat: number;
   lon: number;
@@ -15,13 +15,13 @@ export interface BeamSpec {
   width: number;
 }
 
-const BEAM_UP = new THREE.Vector3(0, 1, 0); // asse del cilindro nel suo spazio locale
+const BEAM_UP = new THREE.Vector3(0, 1, 0); // Cylinder axis in local space.
 
 /**
- * Colonne di luce verticali sul globo, come singolo InstancedMesh di cilindri
- * rastremati (base sulla superficie, cima che svanisce). Additive, con respiro
- * sfalsato per istanza. Layer puramente decorativo: non intercetta il raycast,
- * i click passano ai marker sottostanti.
+ * Vertical globe light columns rendered as one instanced cylinder mesh.
+ * Tapered cylinders fade at the top and breathe out of phase per instance. This
+ * decorative layer does not intercept raycasts.
+ * Pointer events pass through to the underlying markers.
  */
 export function Beams({ beams, radius }: { beams: BeamSpec[]; radius: number }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -29,7 +29,7 @@ export function Beams({ beams, radius }: { beams: BeamSpec[]; radius: number }) 
 
   const geometry = useMemo(() => {
     const g = new THREE.CylinderGeometry(0.32, 1, 1, 16, 1, true);
-    g.translate(0, 0.5, 0); // base a y=0 → la scala in altezza non affonda nel globo
+    g.translate(0, 0.5, 0); // Keep height scaling above the globe surface.
     return g;
   }, []);
 
@@ -87,7 +87,7 @@ export function Beams({ beams, radius }: { beams: BeamSpec[]; radius: number }) 
 
   return (
     <instancedMesh
-      // Rimonta quando cambia il numero di beam (args[count] è immutabile a runtime).
+      // Remount when the immutable instance count changes.
       key={count}
       ref={meshRef}
       args={[geometry, material, count]}

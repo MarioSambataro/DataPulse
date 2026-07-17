@@ -1,6 +1,6 @@
-// Callout hover degli eventi sul globo. Renderizzato dentro <Html> di drei
+// Drei HTML hover callout for globe events.
 // SENZA distanceFactor: dimensione fissa in pixel schermo, mai gigante allo zoom.
-// Design "callout cartografico": chip compatto + leader line verso il marker.
+// Compact cartographic callout with a leader line to the marker.
 
 import { severityCss } from "@/lib/severity";
 import { useLocale, type Locale } from "@/components/locale-provider";
@@ -36,7 +36,7 @@ export function EventHoverCard({ event }: { event: Event }) {
     : t("volcano");
 
   return (
-    // Ancorato al punto proiettato: card sopra, leader line che scende al marker.
+    // Anchor the card above the projected point with a leader line to the marker.
     <div className="pointer-events-none flex -translate-x-1/2 -translate-y-full flex-col items-center pb-1">
       <div className="min-w-[150px] max-w-[230px] rounded-md border border-border/80 bg-popover/85 px-2.5 py-2 shadow-lg backdrop-blur-md">
         <div className="flex items-center justify-between gap-3">
@@ -63,7 +63,7 @@ export function EventHoverCard({ event }: { event: Event }) {
           {isQuake && event.depth_km != null && ` · ${event.depth_km.toFixed(0)} km`}
         </p>
       </div>
-      {/* Leader line verso il marker */}
+      {/* Leader line to the marker. */}
       <span className="h-3 w-px bg-border" />
     </div>
   );

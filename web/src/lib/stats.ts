@@ -1,13 +1,10 @@
-// Derivazione client-side delle statistiche (GET /stats) dagli eventi già
-// caricati. Usata in modalità ?mock=1 (niente endpoint /stats) e come fallback se
-// la chiamata reale a /stats fallisce, così il pannello SITREP è sempre popolato.
-// Replica le finestre rolling 24h/7g dell'API (api/queries.compute_stats).
+// Derive GET /stats-compatible values from loaded events for mock and fallback modes.
 
 import type { Event, Stats } from "../types";
 
 const DAY_MS = 86_400_000;
 
-/** Calcola gli aggregati 24h/7g dagli eventi in memoria (finestre rolling su now). */
+/** Compute rolling 24-hour and 7-day aggregates from in-memory events. */
 export function deriveStats(events: Event[], now: Date = new Date()): Stats {
   const t = now.getTime();
   const since24h = t - DAY_MS;

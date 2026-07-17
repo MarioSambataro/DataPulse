@@ -1,9 +1,5 @@
-// Console AI (DeepSeek): due capacità
-//  - query in linguaggio naturale → POST /ai/query traduce nei filtri di
-//    GET /events; il fetch lo fa il client e il globo entra in "modalità AI"
-//    (polling/SSE non sovrascrivono finché non si fa reset);
-//  - SITREP: bollettino sintetico generato dai dati reali (GET /ai/briefing).
-// Se il backend non ha DEEPSEEK_API_KEY (503) la console si spegne con una nota.
+// DeepSeek console for natural-language event filters and a data-grounded SITREP.
+// A 503 from a missing backend key disables the console with an explanatory note.
 
 import { CornerDownLeft, RotateCcw, Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -24,7 +20,7 @@ import {
 import type { AiFilters } from "@/types";
 import { useStore } from "@/store/useStore";
 
-/** Converte i filtri AI nei query param di GET /events (solo i valorizzati). */
+/** Convert populated AI filters into GET /events query parameters. */
 function toParams(filters: AiFilters): Record<string, string> {
   const params: Record<string, string> = {};
   if (filters.event_type) params.event_type = filters.event_type;
@@ -65,7 +61,7 @@ export function AiConsole() {
       const result = await aiQuery(q);
       const page = await fetchEventsWithParams(toParams(result.filters));
       stopPlayback();
-      // I filtri client tornano neutri: il dataset è GIÀ filtrato dall'API.
+      // Reset client filters because the API dataset is already filtered.
       setFilters({ eventType: "all", minMagnitude: 0, timeWindow: "all" });
       setEvents(page.items);
       setAiMode({ question: q, answer: result.answer, total: page.total });
@@ -84,7 +80,7 @@ export function AiConsole() {
       const page = await fetchEvents();
       setEvents(page.items);
     } catch {
-      // il prossimo giro di polling rimetterà a posto i dati
+      // The next polling cycle restores the live dataset.
     }
   };
 

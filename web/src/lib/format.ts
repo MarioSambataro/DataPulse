@@ -1,4 +1,4 @@
-// Piccole utility di formattazione testuale per l'HUD.
+// Small text-formatting utilities for the HUD.
 
 /** Tempo trascorso compatto: "now", "12m", "3h", "2d", "5w". */
 export function timeAgo(iso: string, now: number = Date.now()): string {

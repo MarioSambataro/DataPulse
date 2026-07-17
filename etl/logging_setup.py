@@ -1,9 +1,4 @@
-"""Logging strutturato (JSON line) per i job ETL.
-
-Ogni record viene emesso come una riga JSON con timestamp UTC, livello, logger e
-messaggio; gli eventuali campi extra passati via `logger.info(msg, extra={...})`
-finiscono nello stesso oggetto. Comodo da grepare e da ingerire in un collector.
-"""
+"""Structured JSON-line logging for ETL jobs."""
 
 from __future__ import annotations
 
@@ -11,14 +6,14 @@ import json
 import logging
 from datetime import UTC, datetime
 
-# Attributi standard di LogRecord: tutto ciò che NON è qui è un campo "extra".
+# Standard LogRecord attributes; everything else is structured extra context.
 _RESERVED = set(
     logging.makeLogRecord({}).__dict__.keys()
 ) | {"message", "asctime", "taskName"}
 
 
 class JsonFormatter(logging.Formatter):
-    """Formatta i LogRecord come una singola riga JSON."""
+    """Format one LogRecord as a single JSON line."""
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
@@ -36,7 +31,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: int = logging.INFO) -> None:
-    """Configura il root logger con il formatter JSON (idempotente)."""
+    """Configure the root logger with the JSON formatter."""
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()

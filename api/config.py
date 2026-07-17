@@ -1,16 +1,15 @@
-"""Configurazione dell'API (CORS).
+"""Environment-backed API configuration.
 
-Mantiene separata la lettura dell'ambiente dal resto dell'app, così è facile da
-testare. La normalizzazione di `DATABASE_URL` (psycopg v3) vive invece in
-`etl.config.database_url`, riusata da `api.db` per non duplicare la logica.
+Environment access is isolated for straightforward testing. `DATABASE_URL`
+normalization lives in `etl.config.database_url` and is reused by `api.db`.
 """
 
 from __future__ import annotations
 
 import os
 
-# Origin di default per lo sviluppo: il dev server Vite del frontend.
-# In produzione l'origin Vercel verrà aggiunto via env (SEZIONE 10), non hard-coded.
+# Default development origins for the Vite frontend. Production origins are
+# supplied through the environment rather than hard-coded.
 DEFAULT_CORS_ORIGINS = (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -20,12 +19,10 @@ DEFAULT_CORS_ORIGINS = (
 
 
 def cors_origins() -> list[str]:
-    """Lista di origin consentiti per il CORS.
+    """Return CORS origins from a comma-separated environment variable.
 
-    Letta da `CORS_ALLOW_ORIGINS` (origin separati da virgola). Se la variabile non
-    è impostata si usa il default dev (`http://localhost:5173`). In SEZIONE 10 il
-    dominio Vercel di produzione verrà aggiunto valorizzando questa variabile
-    d'ambiente sul backend, senza toccare il codice.
+    Development origins are used when `CORS_ALLOW_ORIGINS` is unset. Production
+    supplies the exact Vercel origin through the backend environment.
     """
     raw = os.environ.get("CORS_ALLOW_ORIGINS")
     if not raw:
@@ -34,10 +31,10 @@ def cors_origins() -> list[str]:
 
 
 def rate_limit_per_minute() -> int:
-    """Richieste per minuto per singolo IP (0 = rate limiting disattivato).
+    """Return requests per minute per IP; zero disables rate limiting.
 
-    Letta a ogni richiesta (non cache-ata) così i test possono variarla via env
-    senza ricostruire l'app. Default prudente per un backend free-tier pubblico.
+    The value is read for every request so tests can change it without rebuilding
+    the app. The default is conservative for a public free-tier backend.
     """
     try:
         return int(os.environ.get("RATE_LIMIT_PER_MINUTE", "240"))
@@ -46,7 +43,7 @@ def rate_limit_per_minute() -> int:
 
 
 def stream_poll_seconds() -> float:
-    """Intervallo di polling interno del feed SSE `/events/stream` (secondi)."""
+    """Return the internal SSE database polling interval in seconds."""
     try:
         return float(os.environ.get("EVENTS_STREAM_POLL_SECONDS", "5"))
     except ValueError:
@@ -54,12 +51,10 @@ def stream_poll_seconds() -> float:
 
 
 def stream_max_lifetime_seconds() -> float:
-    """Durata massima di una connessione SSE prima della chiusura lato server.
+    """Return the maximum lifetime of one server-side SSE connection.
 
-    Pattern SSE standard: il server chiude periodicamente e l'`EventSource` del
-    browser si riconnette da solo (con `Last-Event-ID`/`since` non serve stato).
-    Evita connessioni zombie dietro proxy e rende lo stream testabile (i test la
-    abbassano via env, così il generatore termina da solo).
+    Periodic closure lets the browser reconnect automatically, avoids zombie
+    proxy connections, and makes the stream generator testable.
     """
     try:
         return float(os.environ.get("EVENTS_STREAM_MAX_LIFETIME_S", "300"))
@@ -68,16 +63,15 @@ def stream_max_lifetime_seconds() -> float:
 
 
 def deepseek_api_key() -> str | None:
-    """API key DeepSeek; se assente gli endpoint `/ai/*` rispondono 503."""
+    """Return the DeepSeek API key; AI endpoints return 503 when it is absent."""
     return os.environ.get("DEEPSEEK_API_KEY") or None
 
 
 def deepseek_model() -> str:
-    """Model ID DeepSeek. Default `deepseek-v4-flash` (i legacy `deepseek-chat`
-    sono deprecati dal 2026-07-24)."""
+    """Return the DeepSeek model ID, defaulting to `deepseek-v4-flash`."""
     return os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
 
 def deepseek_base_url() -> str:
-    """Base URL API DeepSeek (OpenAI-compatibile), senza slash finale."""
+    """Return the OpenAI-compatible DeepSeek base URL without a trailing slash."""
     return os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/")

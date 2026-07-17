@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { Scene } from "@/three/Scene";
 import { useStore } from "@/store/useStore";
 
-/** Indicatore di stato del feed eventi (GET /events + stream SSE). */
+/** Event feed status for REST loading and SSE connectivity. */
 function DataStatus() {
   const { status, error, count } = useEventsLoader();
   const live = useStore((s) => s.live);
@@ -53,7 +53,7 @@ function DataStatus() {
   );
 }
 
-/** Barra superiore: brand + stato feed + switch tema. */
+/** Top bar with brand, feed state, and theme control. */
 function TopBar() {
   return (
     <header
@@ -83,7 +83,7 @@ function TopBar() {
   );
 }
 
-/** Controlli vista globo (replay, placche, giorno/notte, auto-rotazione). */
+/** Globe controls for replay, plates, day/night mode, and rotation. */
 function GlobeControls() {
   const { t } = useLocale();
   const autoRotate = useStore((s) => s.autoRotate);
@@ -102,7 +102,7 @@ function GlobeControls() {
     }
     const range = eventsTimeRange(events);
     if (!range) return;
-    // Il replay parte dall'evento più vecchio caricato e scorre verso il presente.
+    // Replay begins at the oldest loaded event and advances toward the present.
     setPlayback({ playhead: range.min, playing: true });
   };
 
@@ -167,18 +167,18 @@ function GlobeControls() {
 }
 
 export default function App() {
-  // Deep-linking ?event=<id>: selezione da URL all'avvio, URL aggiornato alla selezione.
+  // Synchronize initial and current selections with ?event=<id>.
   useDeepLink();
   const { resolvedTheme } = useTheme();
   const daytime = resolvedTheme === "light";
-  // Il tema e l'unica sorgente di verita: UI, sfondo e globo non possono divergere.
+  // Theme is the single source of truth for UI, background, and globe lighting.
   return (
     <div className={cn("app-shell relative h-screen w-screen overflow-hidden", resolvedTheme === "light" && "day-mode")}>
       <Scene daytime={daytime} />
 
       <TopBar />
 
-      {/* Console AI a sinistra: query in linguaggio naturale + SITREP generato. */}
+      {/* Left AI console for natural-language queries and generated SITREP. */}
       <aside
         className="hud-in pointer-events-none absolute left-3 top-20 z-20 hidden w-[280px] max-w-[82vw] flex-col gap-3 sm:left-4 md:flex"
         style={{ animationDelay: "1450ms" }}
@@ -186,7 +186,7 @@ export default function App() {
         <AiConsole />
       </aside>
 
-      {/* Console laterale: statistiche 24h + filtri + stato sistema. */}
+      {/* Side console with rolling statistics, filters, and system status. */}
       <aside
         className="hud-in pointer-events-none absolute right-3 top-20 z-20 flex w-[264px] max-w-[82vw] flex-col gap-3 sm:right-4"
         style={{ animationDelay: "1350ms" }}
@@ -201,7 +201,7 @@ export default function App() {
       <TimeBar />
       <GlobeControls />
 
-      {/* Splash di avvio: copre il caricamento e svanisce sul dolly-in. */}
+      {/* Startup splash covers loading and fades during the camera dolly. */}
       <SplashScreen />
     </div>
   );

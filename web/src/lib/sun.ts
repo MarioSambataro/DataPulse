@@ -1,21 +1,15 @@
-// Posizione del punto subsolare (dove il sole è allo zenit) a partire dall'ora
-// UTC corrente. Funzione pura (niente three) → testabile in CI senza WebGL.
-// Serve a orientare luce direzionale e atmosfera così il terminatore giorno/notte
-// sul globo corrisponde a "adesso" nel mondo reale.
+// Pure approximation of the subsolar point used to orient globe lighting.
 
 export interface SubsolarPoint {
-  lat: number; // declinazione solare [-23.44 .. +23.44]
-  lon: number; // longitudine del mezzogiorno solare [-180 .. 180]
+  lat: number; // Solar declination [-23.44 .. +23.44].
+  lon: number; // Solar-noon longitude [-180 .. 180].
 }
 
 const DAY_MS = 86_400_000;
 
 /**
- * Punto subsolare approssimato (errore < ~2° ignorando l'equazione del tempo,
- * più che sufficiente per un terminatore visivamente credibile).
- *  - declinazione: -23.44° · cos(2π · (N+10) / 365.24), N = giorno dell'anno;
- *  - longitudine: il sole è allo zenit dove è mezzogiorno solare, quindi
- *    lon = (12 − oraUTC) · 15°/h, normalizzata in [-180, 180].
+ * Approximate the subsolar point with enough accuracy for a visual terminator.
+ * Declination follows a seasonal cosine; longitude follows UTC solar noon.
  */
 export function subsolarPoint(date: Date = new Date()): SubsolarPoint {
   const startOfYear = Date.UTC(date.getUTCFullYear(), 0, 0);

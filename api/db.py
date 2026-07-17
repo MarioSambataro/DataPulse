@@ -1,10 +1,9 @@
-"""Engine/session SQLAlchemy dell'API + dependency injection FastAPI.
+"""SQLAlchemy engine/session management and FastAPI dependency injection.
 
-L'engine è **condiviso** (creato una sola volta) e riusa `etl.db.get_engine`, che
-a sua volta riusa la normalizzazione `DATABASE_URL` -> psycopg v3 di
-`etl.config.database_url`: un solo punto di verità per driver/URL, niente
-duplicazioni. `get_session` è la dependency FastAPI: apre una `Session` per
-richiesta e la chiude al termine.
+The process-wide engine reuses `etl.db.get_engine`, which in turn uses the
+`DATABASE_URL` normalization from `etl.config.database_url`. This keeps one
+source of truth for the driver and URL. `get_session` opens one FastAPI-managed
+session per request and closes it afterwards.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ _SessionLocal: sessionmaker[Session] | None = None
 
 
 def get_engine_cached() -> Engine:
-    """Engine condiviso a livello di processo (creato pigramente al primo uso)."""
+    """Return the process-wide engine, creating it lazily on first use."""
     global _engine
     if _engine is None:
         _engine = get_engine()
@@ -28,7 +27,7 @@ def get_engine_cached() -> Engine:
 
 
 def get_sessionmaker() -> sessionmaker[Session]:
-    """Factory di `Session` legata all'engine condiviso."""
+    """Return the `Session` factory bound to the shared engine."""
     global _SessionLocal
     if _SessionLocal is None:
         _SessionLocal = sessionmaker(
@@ -38,7 +37,7 @@ def get_sessionmaker() -> sessionmaker[Session]:
 
 
 def get_session() -> Iterator[Session]:
-    """Dependency FastAPI: una `Session` per richiesta, chiusa a fine richiesta."""
+    """Yield one FastAPI-managed `Session` per request."""
     factory = get_sessionmaker()
     with factory() as session:
         yield session

@@ -1,9 +1,4 @@
-"""Test end-to-end degli endpoint API contro Postgres+PostGIS reale.
-
-Coprono: envelope/paginazione, filtri (tipo, magnitudo, tempo, bbox), vicinanza
-PostGIS (`ST_DWithin`), validazione coerenza parametri, ordinamento, il trigger
-`geom` (lat/lon → geometria) e la semantica di `/stats`.
-"""
+"""End-to-end API tests against real PostgreSQL/PostGIS."""
 
 from __future__ import annotations
 
@@ -16,7 +11,7 @@ from sqlalchemy.orm import Session
 
 
 def _event(**overrides) -> Event:
-    """Costruisce un Event ORM con default sensati (geom la popola il trigger)."""
+    """Build an ORM Event with sensible defaults; the trigger supplies geometry."""
     base = {
         "id": "usgs:test",
         "source": "usgs",
@@ -60,12 +55,12 @@ def test_events_envelope_and_no_geom(client, db_session):
     item = body["items"][0]
     assert item["id"] == "usgs:1"
     assert item["lat"] == 38.0 and item["lon"] == 15.0
-    # Contratto pubblico: mai la geometria interna.
+    # The public contract never exposes internal geometry.
     assert "geom" not in item
 
 
 def test_trigger_populates_geom(client, db_session):
-    """Inserendo solo lat/lon il trigger DB calcola geom (verifica via ST_AsText)."""
+    """Verify that inserting coordinates causes the database to derive geometry."""
     _seed(db_session, [_event(id="usgs:geo", lat=10.0, lon=20.0)])
     wkt = db_session.scalar(
         select(func.ST_AsText(Event.geom)).where(Event.id == "usgs:geo")
@@ -161,7 +156,7 @@ def test_ordering_and_pagination(client, db_session):
             _event(id="usgs:c", occurred_at=now - timedelta(hours=1)),
         ],
     )
-    # Default DESC: il più recente per primo.
+    # Default descending order returns the newest event first.
     desc = client.get("/events").json()
     assert [it["id"] for it in desc["items"]] == ["usgs:c", "usgs:b", "usgs:a"]
     # ASC.
@@ -183,11 +178,11 @@ def test_stats_semantics(client, db_session):
     _seed(
         db_session,
         [
-            # Terremoti: 2 nelle 24h (mag 3 e 6), 1 a 3 giorni (dentro 7g, fuori 24h).
+            # Two earthquakes fall within 24 hours; one falls only within seven days.
             _event(id="usgs:eq1", occurred_at=now - timedelta(hours=1), magnitude=3.0),
             _event(id="usgs:eq2", occurred_at=now - timedelta(hours=5), magnitude=6.0),
             _event(id="usgs:eq3", occurred_at=now - timedelta(days=3), magnitude=2.0),
-            # Vulcani: 2 vulcani distinti negli ultimi 7g, 1 oltre i 7g.
+            # Two distinct volcanoes are recent; one falls outside seven days.
             _event(
                 id="gvp:1", source="gvp", event_type="volcano", magnitude=None,
                 lat=0, lon=0, occurred_at=now - timedelta(days=2), meta={"volcano_number": "111"},

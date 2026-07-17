@@ -1,16 +1,7 @@
-"""Job ETL vulcani GVP: scarica il Weekly Volcanic Activity Report e fa upsert in `events`.
+"""Fetch the GVP weekly report and upsert normalized volcanic activity.
 
-Pipeline: feed RSS Smithsonian/USGS -> normalizzazione Pandas -> upsert idempotente.
-Cadenza **settimanale**: ogni evento è "il vulcano X nella settimana W". Idempotente
-per costruzione (`id = "gvp:<volcano_number>:<week_iso>"` + `ON CONFLICT DO UPDATE`):
-rilanciare il job nella stessa settimana non crea duplicati.
-
-I vulcani non hanno magnitudo né profondità (magnitude/depth_km = null); la severity
-deriva dalla categoria di attività del report (vedi `normalize.severity_from_activity`).
-
-Uso:
-    python -m etl.jobs.volcanoes              # report della settimana corrente
-    python -m etl.jobs.volcanoes --dry-run    # scarica e normalizza, niente DB
+Each deterministic ID represents one volcano in one ISO week. Volcanoes have no
+magnitude or depth; rendering severity comes from the report activity category.
 """
 
 from __future__ import annotations
@@ -25,7 +16,7 @@ logger = get_logger("etl.jobs.volcanoes")
 
 
 def run(*, dry_run: bool = False) -> int:
-    """Esegue il job. Ritorna il numero di vulcani normalizzati (=upsertati)."""
+    """Run ingestion and return the number of normalized volcano records."""
     logger.info("job_start", extra={"dry_run": dry_run})
 
     xml_bytes = gvp.fetch_weekly_report()
@@ -44,11 +35,11 @@ def run(*, dry_run: bool = False) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="ETL vulcani GVP -> tabella events")
+    parser = argparse.ArgumentParser(description="Ingest GVP volcanoes into events")
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Scarica e normalizza ma non scrive sul DB.",
+        help="Fetch and normalize without writing to the database.",
     )
     args = parser.parse_args()
 

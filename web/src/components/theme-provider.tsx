@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-// Provider tema light/dark in stile shadcn: applica la classe `.dark` su <html>
-// e persiste la scelta in localStorage. Default: dark (il globo 3D rende meglio
-// su fondo scuro). "system" segue la preferenza OS.
+// Persist the shadcn-style theme, apply `.dark` to HTML, and respect system mode.
 type Theme = "dark" | "light" | "system";
 
 interface ThemeProviderState {
@@ -40,7 +38,7 @@ export function ThemeProvider({
     setResolvedTheme(applied);
   }, [theme]);
 
-  // Se "system", reagisci ai cambi di preferenza OS.
+  // Follow operating-system preference changes in system mode.
   useEffect(() => {
     if (theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -70,6 +68,6 @@ export function ThemeProvider({
 
 export function useTheme() {
   const ctx = useContext(ThemeProviderContext);
-  if (!ctx) throw new Error("useTheme deve essere usato dentro <ThemeProvider>");
+  if (!ctx) throw new Error("useTheme must be used inside <ThemeProvider>");
   return ctx;
 }

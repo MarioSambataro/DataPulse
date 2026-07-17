@@ -1,21 +1,8 @@
-"""DataPulse API — FastAPI.
+"""DataPulse FastAPI application.
 
-Espone gli eventi geo-tettonici unificati (terremoti USGS + vulcani GVP) con
-filtri, paginazione e aggregati. Avvio: `uvicorn api.main:app --reload`.
-OpenAPI/Swagger su `/docs`.
-
-Contratto:
-  - `GET /events`         → envelope paginato `EventPage` (items + total/limit/offset).
-  - `GET /events/stream`  → feed live SSE dei nuovi eventi ingeriti (api.stream).
-  - `GET /stats`          → aggregati `Stats` (finestre rolling 24h/7g).
-  - `POST /ai/query`      → linguaggio naturale → filtri (DeepSeek, api.ai).
-  - `GET /ai/briefing`    → bollettino sintetico generato dai dati (DeepSeek, api.ai).
-  - `GET /health`         → liveness check (non tocca il DB).
-  - `GET /status`         → readiness: DB, freschezza dati, uptime.
-  - `GET /metrics`        → metriche Prometheus.
-
-Trasversali (api.middleware): rate limiting per IP, Cache-Control+ETag su
-/events e /stats, contatori/latenze Prometheus.
+Serves unified geotectonic events with filtering, pagination, aggregates, live
+SSE updates, optional AI assistance, and operational endpoints. Run locally with
+`uvicorn api.main:app --reload`; OpenAPI documentation is available at `/docs`.
 """
 
 from __future__ import annotations
@@ -40,21 +27,20 @@ from api.queries import DEFAULT_LIMIT, MAX_LIMIT, compute_stats, list_events
 from api.schemas import EventPage, EventType, Stats, Status
 from api.stream import router as stream_router
 
-# Istante di avvio del processo (per l'uptime esposto da /status).
+# Process start time used by the readiness endpoint.
 _STARTED_AT_MONOTONIC = time.monotonic()
 
 app = FastAPI(
     title="DataPulse API",
     version=api.__version__,
     description=(
-        "Console di monitoraggio geo-tettonico: eventi sismici (USGS) e vulcanici "
-        "(GVP) in uno schema unificato, con filtri spaziali/temporali e aggregati."
+        "Geotectonic monitoring API that unifies USGS seismic events and "
+        "Smithsonian GVP volcanic activity with spatial and temporal filters."
     ),
 )
 
-# Ordine middleware (l'ultimo aggiunto è il più esterno): CORS avvolge tutto
-# (anche 429/304 devono avere gli header CORS), poi il rate limit taglia presto,
-# la cache riscrive solo /events e /stats, le metriche misurano ciò che passa.
+# Middleware is applied inside-out: CORS remains outermost so 429 and 304
+# responses include its headers, while metrics observe the processed requests.
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(CacheMiddleware)
 app.add_middleware(RateLimitMiddleware)
@@ -72,13 +58,13 @@ app.include_router(ai_router)
 
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
-    """Liveness check (non tocca il DB)."""
+    """Return process liveness without accessing the database."""
     return {"status": "ok"}
 
 
 @app.get("/status", response_model=Status, tags=["meta"])
 def status(session: Annotated[Session, Depends(get_session)]) -> Status:
-    """Readiness + freschezza dati: DB raggiungibile, età dell'ultima ingestione ETL."""
+    """Report database readiness, data freshness, and process uptime."""
     uptime_s = time.monotonic() - _STARTED_AT_MONOTONIC
     try:
         last_ingested = session.scalar(select(func.max(Event.ingested_at)))
@@ -102,17 +88,17 @@ def status(session: Annotated[Session, Depends(get_session)]) -> Status:
 
 @app.get("/metrics", tags=["meta"], include_in_schema=False)
 def metrics() -> Response:
-    """Metriche Prometheus (testo, formato exposition)."""
+    """Return Prometheus metrics in the text exposition format."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/events", response_model=EventPage, tags=["events"])
 def get_events(
     session: Annotated[Session, Depends(get_session)],
-    event_type: Annotated[EventType | None, Query(description="Filtra per tipo evento.")] = None,
+    event_type: Annotated[EventType | None, Query(description="Filter by event type.")] = None,
     min_magnitude: Annotated[
         float | None,
-        Query(ge=0, description="Magnitudo minima (esclude i record senza magnitudo)."),
+        Query(ge=0, description="Minimum magnitude; excludes records with no magnitude."),
     ] = None,
     start: Annotated[datetime | None, Query(description="occurred_at >= start (ISO 8601).")] = None,
     end: Annotated[datetime | None, Query(description="occurred_at <= end (ISO 8601).")] = None,
@@ -120,35 +106,36 @@ def get_events(
     max_lat: Annotated[float | None, Query(ge=-90, le=90)] = None,
     min_lon: Annotated[float | None, Query(ge=-180, le=180)] = None,
     max_lon: Annotated[float | None, Query(ge=-180, le=180)] = None,
-    near_lat: Annotated[float | None, Query(ge=-90, le=90, description="Centro vicinanza.")] = None,
+    near_lat: Annotated[
+        float | None, Query(ge=-90, le=90, description="Proximity centre latitude.")
+    ] = None,
     near_lon: Annotated[
-        float | None, Query(ge=-180, le=180, description="Centro vicinanza.")
+        float | None, Query(ge=-180, le=180, description="Proximity centre longitude.")
     ] = None,
     radius_km: Annotated[
-        float | None, Query(gt=0, description="Raggio vicinanza in km (ST_DWithin).")
+        float | None, Query(gt=0, description="Proximity radius in kilometres (ST_DWithin).")
     ] = None,
     order: Annotated[
-        str, Query(pattern="^(asc|desc)$", description="Ordine per occurred_at.")
+        str, Query(pattern="^(asc|desc)$", description="Sort order for occurred_at.")
     ] = "desc",
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> EventPage:
-    """Eventi filtrati e paginati, ordinati per `occurred_at` (default DESC).
+    """Return filtered, paginated events ordered by `occurred_at`.
 
-    Coerenza parametri (422 se violata):
-      - vicinanza: `near_lat`, `near_lon`, `radius_km` vanno forniti **tutti e tre o nessuno**;
-      - bounding box: se presenti entrambi, `min_lat <= max_lat` e `min_lon <= max_lon`.
+    Proximity parameters must be supplied together. Bounding-box minima cannot
+    exceed their corresponding maxima; inconsistent parameters return 422.
     """
     near = (near_lat, near_lon, radius_km)
     if any(v is not None for v in near) and any(v is None for v in near):
         raise HTTPException(
             status_code=422,
-            detail="near_lat, near_lon e radius_km vanno forniti tutti e tre insieme (o nessuno).",
+            detail="near_lat, near_lon, and radius_km must be provided together or omitted.",
         )
     if min_lat is not None and max_lat is not None and min_lat > max_lat:
-        raise HTTPException(status_code=422, detail="min_lat non può superare max_lat.")
+        raise HTTPException(status_code=422, detail="min_lat cannot exceed max_lat.")
     if min_lon is not None and max_lon is not None and min_lon > max_lon:
-        raise HTTPException(status_code=422, detail="min_lon non può superare max_lon.")
+        raise HTTPException(status_code=422, detail="min_lon cannot exceed max_lon.")
 
     rows, total = list_events(
         session,
@@ -172,8 +159,5 @@ def get_events(
 
 @app.get("/stats", response_model=Stats, tags=["stats"])
 def get_stats(session: Annotated[Session, Depends(get_session)]) -> Stats:
-    """Aggregati: conteggi 24h/7g, magnitudo massima 24h, vulcani attivi 7g.
-
-    Le finestre sono **rolling** rispetto a `generated_at` (now UTC del DB).
-    """
+    """Return rolling 24-hour and 7-day event statistics."""
     return Stats(**compute_stats(session))

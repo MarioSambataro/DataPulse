@@ -5,8 +5,7 @@ description = "DataPulse — console di monitoraggio geo-tettonico (ETL + API)"
 requires-python = ">=3.12"
 dependencies = []
 
-# Le dipendenze runtime vere arrivano nelle sezioni 2-3-4-9.
-# Per ora gruppi opzionali per installare on-demand i singoli layer.
+# Optional groups keep installation scoped to individual application layers.
 [project.optional-dependencies]
 etl = [
     "pandas>=2.2",
@@ -20,7 +19,7 @@ api = [
     "httpx>=0.27",
     "prometheus-client>=0.20",
 ]
-# DB & migrazioni (SEZIONE 2). psycopg v3 con binary per evitare build di libpq su Windows.
+# Database and migrations; psycopg binary avoids local libpq builds.
 db = [
     "sqlalchemy>=2.0",
     "alembic>=1.13",
@@ -40,7 +39,7 @@ include = ["etl*", "api*", "db*"]
 line-length = 100
 target-version = "py312"
 src = ["etl", "api", "db"]
-# Le migrazioni Alembic sono generate/boilerplate: niente lint rumoroso.
+# Alembic migration boilerplate is excluded from noisy lint rules.
 extend-exclude = ["db/migrations/versions"]
 
 [tool.ruff.lint]

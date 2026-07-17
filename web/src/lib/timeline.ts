@@ -1,10 +1,8 @@
-// Logica pura del time-travel (playback): finestre, avanzamento del playhead,
-// selezione degli eventi visibili a un dato istante. Nessuna dipendenza three/react
-// → testabile in CI (come lib/geo, lib/filters).
+// Pure replay utilities for ranges, playhead advancement, and visible events.
 
 import type { Event } from "../types";
 
-/** Velocità di riproduzione: moltiplicatore tempo-dati / tempo-reale. */
+/** Replay speed as a data-time to real-time multiplier. */
 export const PLAYBACK_SPEEDS = [
   { label: "30m/s", value: 1_800 },
   { label: "1h/s", value: 3_600 },
@@ -12,11 +10,10 @@ export const PLAYBACK_SPEEDS = [
   { label: "24h/s", value: 86_400 },
 ] as const;
 
-/** Durante il playback, un sisma forte proietta l'onda d'urto se è "appena
- *  accaduto" rispetto al playhead: finestra di coda di 12 ore. */
+/** Strong earthquakes retain a shockwave for 12 data hours after the playhead passes. */
 export const REPLAY_SHOCKWAVE_WINDOW_MS = 12 * 3_600_000;
 
-/** Estremi temporali (epoch ms) degli eventi caricati, o null se lista vuota. */
+/** Epoch-millisecond bounds for loaded events, or null for an empty list. */
 export function eventsTimeRange(events: Event[]): { min: number; max: number } | null {
   let min = Infinity;
   let max = -Infinity;
@@ -29,7 +26,7 @@ export function eventsTimeRange(events: Event[]): { min: number; max: number } |
   return min <= max ? { min, max } : null;
 }
 
-/** Eventi già accaduti al playhead (occurred_at <= playhead). */
+/** Events that have occurred by the current playhead. */
 export function eventsUpTo(events: Event[], playhead: number): Event[] {
   return events.filter((ev) => {
     const ts = Date.parse(ev.occurred_at);
@@ -37,7 +34,7 @@ export function eventsUpTo(events: Event[], playhead: number): Event[] {
   });
 }
 
-/** Eventi accaduti nella finestra `[playhead - windowMs, playhead]`. */
+/** Events within `[playhead - windowMs, playhead]`. */
 export function eventsInTrailingWindow(
   events: Event[],
   playhead: number,
@@ -51,8 +48,8 @@ export function eventsInTrailingWindow(
 }
 
 /**
- * Avanza il playhead di `dtMs` reali alla velocità data, clampando a `endMs`.
- * `ended` segnala che la riproduzione ha raggiunto la fine (torna al live).
+ * Advance the playhead by real elapsed time at the selected speed and clamp it.
+ * `ended` signals that replay reached the end and should return to live mode.
  */
 export function advancePlayhead(
   playhead: number,
@@ -65,7 +62,7 @@ export function advancePlayhead(
   return { playhead: next, ended: false };
 }
 
-/** Etichetta compatta del playhead per la barra (data+ora locale, senza secondi). */
+/** Compact local date-and-time label for the replay bar. */
 export function formatPlayhead(playheadMs: number, locale = "it-IT"): string {
   return new Date(playheadMs).toLocaleString(locale, {
     day: "2-digit",

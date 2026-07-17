@@ -1,13 +1,11 @@
-"""initial events schema (PostGIS + tabella events unificata)
+"""Initial unified events schema with PostGIS.
 
 Revision ID: 0001
 Revises:
 Create Date: 2026-06-28
 
-Abilita PostGIS, crea gli enum (source/event_type), la tabella `events` con la
-colonna geografica `geom geography(Point,4326)`, gli indici (occurred_at DESC
-btree, event_type btree, geom GiST) e un trigger che mantiene `geom` coerente con
-`lat`/`lon`. Vedi docs/SCHEMA_EVENTI.md.
+Enables PostGIS and creates enums, the `events` table, temporal and spatial
+indexes, and a trigger that keeps `geom` aligned with `lat` and `lon`.
 """
 from __future__ import annotations
 
@@ -29,8 +27,7 @@ event_type_enum = postgresql.ENUM(
     "earthquake", "volcano", name="event_type_enum", create_type=False
 )
 
-# Trigger: geom è SEMPRE derivata da lat/lon, qualunque sia chi scrive (ETL upsert,
-# insert manuale). Così non serve passare la geometria dall'applicazione.
+# Always derive geometry from coordinates regardless of the write path.
 SYNC_GEOM_FN = """
 CREATE OR REPLACE FUNCTION events_sync_geom() RETURNS trigger AS $$
 BEGIN
@@ -104,4 +101,4 @@ def downgrade() -> None:
     op.drop_table("events")
     event_type_enum.drop(op.get_bind(), checkfirst=True)
     source_enum.drop(op.get_bind(), checkfirst=True)
-    # L'estensione postgis NON viene rimossa: può essere usata da altri oggetti.
+    # Keep PostGIS installed because other database objects may depend on it.

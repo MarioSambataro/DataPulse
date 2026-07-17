@@ -1,8 +1,7 @@
-"""Client della USGS Earthquake API (GeoJSON, near-real-time, senza API key).
+"""Near-real-time USGS Earthquake API client.
 
-Scarica una finestra temporale di terremoti. Gestisce timeout e retry con backoff
-esponenziale su errori di rete e risposte 5xx/429 (transitorie). Non normalizza
-nulla: ritorna il GeoJSON grezzo (dict), la trasformazione vive in `etl.normalize`.
+Fetches raw GeoJSON with exponential backoff for transient network, 429, and 5xx
+failures. Normalization remains isolated in `etl.normalize`.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from etl.logging_setup import get_logger
 
 logger = get_logger("etl.usgs")
 
-# Status che vale la pena ritentare (rate limit + errori server transitori).
+# Retry rate limiting and transient server failures.
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
@@ -31,12 +30,7 @@ def fetch_earthquakes(
     backoff: float = 2.0,
     client: httpx.Client | None = None,
 ) -> dict:
-    """Scarica i terremoti nell'intervallo [start, end] dalla USGS API.
-
-    `start`/`end` devono essere datetime UTC (aware). Ritorna il dict GeoJSON
-    (`FeatureCollection`). Solleva l'ultima eccezione httpx se tutti i tentativi
-    falliscono.
-    """
+    """Fetch a GeoJSON FeatureCollection for the inclusive UTC time interval."""
     params: dict[str, object] = {
         "format": "geojson",
         "starttime": start.isoformat(),
@@ -70,7 +64,7 @@ def fetch_earthquakes(
             except (httpx.HTTPError, httpx.TransportError) as exc:
                 last_exc = exc
                 status = getattr(getattr(exc, "response", None), "status_code", None)
-                # Non ritentare i 4xx "veri" (es. 400 parametri errati): inutile.
+                # Fail immediately for permanent client errors.
                 if status is not None and status not in _RETRYABLE_STATUS:
                     logger.error("usgs_fetch_failed", extra={"status": status})
                     raise
@@ -81,7 +75,7 @@ def fetch_earthquakes(
                         extra={"attempt": attempt, "status": status, "sleep": sleep_for},
                     )
                     time.sleep(sleep_for)
-        assert last_exc is not None  # i retry sono >= 1
+        assert last_exc is not None  # retries is always at least one
         logger.error("usgs_fetch_exhausted", extra={"retries": retries})
         raise last_exc
     finally:

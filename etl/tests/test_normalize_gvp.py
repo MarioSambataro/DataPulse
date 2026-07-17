@@ -1,9 +1,7 @@
-"""Test offline di parsing/normalizzazione GVP (niente rete, niente DB).
+"""Offline GVP parsing and normalization tests.
 
-Lavorano sul fixture `fixtures/gvp_weekly_sample.xml` (5 item: 3 validi + uno
-senza georss:point e uno senza numero vulcano nel guid, entrambi da scartare).
-Il fixture è codificato in **ISO-8859-1** come il feed reale, così si verifica
-anche il decoding corretto degli accenti.
+The ISO-8859-1 fixture contains three valid items and two invalid items, allowing
+encoding and required-field behavior to be verified together.
 """
 
 from __future__ import annotations
@@ -34,7 +32,7 @@ def by_id(df):
 
 
 def test_drops_items_without_number_or_point(df):
-    # 5 item nel fixture, 2 da scartare -> 3 righe normalizzate.
+    # Five source items minus two invalid entries yields three normalized rows.
     assert len(df) == 3
     assert all(i.startswith("gvp:") for i in df["id"])
 
@@ -48,7 +46,7 @@ def test_id_is_deterministic_per_week(by_id):
 
 def test_columns_match_schema(df):
     assert list(df.columns) == list(normalize.EVENT_COLUMNS)
-    assert "geom" not in df.columns  # geom la popola il trigger DB
+    assert "geom" not in df.columns  # The database trigger supplies geometry.
 
 
 def test_source_and_type_constant(df):
@@ -76,7 +74,7 @@ def test_occurred_at_is_utc(by_id):
 
 
 def test_severity_from_activity_mapping():
-    # eruzione 0.8, unrest 0.4, "New" +0.1, ignoto 0.5; clamp [0,1].
+    # Eruption maps to 0.8, unrest to 0.4, new activity adds 0.1, unknown maps to 0.5.
     assert normalize.severity_from_activity("New Eruptive Activity") == pytest.approx(0.9)
     assert normalize.severity_from_activity("Continuing Eruptive Activity") == pytest.approx(0.8)
     assert normalize.severity_from_activity("New Unrest") == pytest.approx(0.5)
@@ -89,7 +87,7 @@ def test_severity_applied_to_rows(by_id):
     assert by_id["gvp:257030:2026-W24"]["severity"] == pytest.approx(0.9)  # New Eruptive
     assert by_id["gvp:357063:2026-W24"]["severity"] == pytest.approx(0.5)  # New Unrest
     assert by_id["gvp:282080:2026-W24"]["severity"] == pytest.approx(0.8)  # Continuing Eruptive
-    # i vulcani hanno sempre una severity (mai null)
+    # Volcanoes present in the report always receive a severity.
     assert all(r["severity"] is not None for r in by_id.values())
 
 
@@ -119,7 +117,7 @@ def test_to_records_clean_types(by_id):
 
 
 def test_duplicate_volcano_same_week_keeps_last():
-    # Stesso volcano_number nella stessa settimana -> una sola riga (l'ultima vince).
+    # Duplicate volcano/week pairs retain only the latest row.
     xml = b"""<?xml version="1.0" encoding="ISO-8859-1"?>
 <rss version="2.0" xmlns:georss="http://www.georss.org/georss"><channel>
 <item><title>Dup (X) - Report for 4 June-10 June 2026 - New Unrest</title>

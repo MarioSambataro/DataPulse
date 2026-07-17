@@ -1,14 +1,10 @@
-"""Job ETL terremoti USGS: scarica una finestra temporale e fa upsert in `events`.
+"""Fetch USGS earthquakes, normalize them, and upsert deterministic event IDs.
 
-Pipeline: USGS GeoJSON -> normalizzazione Pandas -> upsert idempotente.
-Idempotente per costruzione (`id = "usgs:<code>"` + `ON CONFLICT DO UPDATE`):
-rilanciare il job non crea duplicati.
-
-Uso:
-    python -m etl.jobs.earthquakes                 # ultime 24h
-    python -m etl.jobs.earthquakes --hours 48      # finestra custom
+Usage:
+    python -m etl.jobs.earthquakes
+    python -m etl.jobs.earthquakes --hours 48
     python -m etl.jobs.earthquakes --min-magnitude 2.5
-    python -m etl.jobs.earthquakes --dry-run       # niente scrittura su DB
+    python -m etl.jobs.earthquakes --dry-run
 """
 
 from __future__ import annotations
@@ -30,7 +26,7 @@ def run(
     min_magnitude: float | None = None,
     dry_run: bool = False,
 ) -> int:
-    """Esegue il job. Ritorna il numero di eventi normalizzati (=upsertati)."""
+    """Run ingestion and return the number of normalized events."""
     end = datetime.now(UTC)
     start = end - timedelta(hours=hours)
     logger.info(
@@ -60,23 +56,23 @@ def run(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="ETL terremoti USGS -> tabella events")
+    parser = argparse.ArgumentParser(description="Ingest USGS earthquakes into events")
     parser.add_argument(
         "--hours",
         type=int,
         default=DEFAULT_WINDOW_HOURS,
-        help=f"Ampiezza della finestra temporale in ore (default {DEFAULT_WINDOW_HOURS}).",
+        help=f"Source time window in hours (default: {DEFAULT_WINDOW_HOURS}).",
     )
     parser.add_argument(
         "--min-magnitude",
         type=float,
         default=None,
-        help="Magnitudo minima (filtro lato USGS). Default: nessun filtro.",
+        help="Minimum magnitude sent to USGS; default: no filter.",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Scarica e normalizza ma non scrive sul DB.",
+        help="Fetch and normalize without writing to the database.",
     )
     args = parser.parse_args()
 

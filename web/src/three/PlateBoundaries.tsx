@@ -4,12 +4,11 @@ import * as THREE from "three";
 import { latLonToVec3 } from "../lib/geo";
 import { useStore } from "../store/useStore";
 
-// Dataset statico (public/geo): confini di placca PB2002 (Bird, 2003) semplificati
-// a 2 decimali — ~6K punti, un solo LineSegments. Caricato pigramente al primo
-// mount, così non pesa sul bundle né sul first paint.
+// Static simplified PB2002 plate-boundary data from Bird (2003).
+// Rounded to two decimals, about 6K points in one LineSegments object, loaded lazily.
 const PLATES_URL = "geo/plate-boundaries.json";
 
-// Poco sopra la superficie: sotto i ping evento (1.004R) ma sopra la texture.
+// Slightly above the texture and below event pings.
 const ALTITUDE = 1.002;
 
 interface PlatesData {
@@ -19,9 +18,9 @@ interface PlatesData {
 let cached: PlatesData | null = null;
 
 /**
- * Confini delle placche tettoniche come singolo `LineSegments` additivo e tenue:
- * contesto geologico che spiega la disposizione degli epicentri (gli sciami
- * seguono le faglie) senza competere visivamente con i dati.
+ * One subtle additive LineSegments object provides plate-boundary context for
+ * epicentre distribution.
+ * follow fault lines without visually competing with event data.
  */
 export function PlateBoundaries({ radius, daytime }: { radius: number; daytime: boolean }) {
   const showPlates = useStore((s) => s.showPlates);
@@ -37,7 +36,7 @@ export function PlateBoundaries({ radius, daytime }: { radius: number; daytime: 
         if (!cancelled) setData(json);
       })
       .catch(() => {
-        // Overlay decorativo: se il fetch fallisce semplicemente non si disegna.
+        // A failed decorative-overlay request simply draws nothing.
       });
     return () => {
       cancelled = true;

@@ -6,68 +6,69 @@
 
 [Live demo](https://data-pulse-tau.vercel.app) ·
 [API status](https://datapulse-api-09py.onrender.com/status) ·
-[Swagger](https://datapulse-api-09py.onrender.com/docs)
+[API documentation](https://datapulse-api-09py.onrender.com/docs)
 
-Console web di monitoraggio geotettonico che unifica terremoti USGS e attività
-vulcanica Smithsonian GVP in un globo 3D interattivo, con feed live, filtri
-geospaziali, replay temporale e osservabilità dell'intera pipeline.
+DataPulse is a web-based geotectonic monitoring console that combines USGS
+earthquakes and Smithsonian GVP volcanic activity on an interactive 3D globe.
+It includes live updates, geospatial filters, temporal replay, and end-to-end
+pipeline observability.
 
-![DataPulse in modalità notte](web/datapulse-marker-night.png)
+![DataPulse night view](web/datapulse-marker-night.png)
 
-## Cosa dimostra
+## What this project demonstrates
 
-- pipeline ETL multi-sorgente, idempotente e schedulata;
-- modellazione unificata di eventi sismici e vulcanici;
-- query geospaziali PostGIS tramite FastAPI e SQLAlchemy;
-- streaming Server-Sent Events con fallback polling;
-- rendering WebGL con Three.js e marker instanziati;
-- replay temporale, deep-link agli eventi e modalità giorno/notte;
-- query in linguaggio naturale e briefing AI opzionali;
-- health, readiness, metriche Prometheus, cache HTTP e rate limiting;
-- test unitari, integrazione PostGIS ed E2E Playwright.
+- Scheduled, idempotent ETL pipelines for heterogeneous data sources.
+- A unified data model for seismic and volcanic events.
+- PostGIS geospatial queries through FastAPI and SQLAlchemy.
+- Server-Sent Events with polling fallback.
+- WebGL rendering with Three.js and instanced markers.
+- Temporal replay, event deep links, and day/night globe modes.
+- Optional natural-language queries and AI-generated briefings.
+- Health, readiness, Prometheus metrics, HTTP caching, and rate limiting.
+- Unit, PostGIS integration, and Playwright end-to-end tests.
 
-## Architettura
+## Architecture
 
 ```text
 USGS Earthquake API ─┐
                      ├─► GitHub Actions ETL ─► Neon PostgreSQL + PostGIS
 Smithsonian GVP RSS ─┘                              │
                                                    ▼
-                                           FastAPI su Render
+                                            FastAPI on Render
                                       REST · SSE · Prometheus · AI
                                                    │
                                                    ▼
-                                      React + Three.js su Vercel
+                                      React + Three.js on Vercel
 ```
 
-Il frontend non usa dati hard-coded in produzione: API, statistiche, stato del
-sistema e feed SSE provengono dal backend. `?mock=1` è disponibile esclusivamente
-per screenshot e test E2E indipendenti dall'infrastruttura cloud.
+The production frontend does not use hard-coded data. Events, statistics,
+system status, and the SSE feed come from the backend. Add `?mock=1` only for
+infrastructure-independent screenshots and end-to-end tests.
 
-## Funzionalità principali
+## Key features
 
-- **Globo 3D:** texture giorno/notte, atmosfera, placche tettoniche e camera animata.
-- **Eventi live:** terremoti e vulcani con severità, hover, selezione e ticker.
-- **Analisi:** filtri per tipo, magnitudo e finestra temporale; statistiche 24h/7g.
-- **Time travel:** replay degli eventi con playhead e velocità configurabile.
-- **Affidabilità:** retry del cold start, ETag/cache, rate limit e stato di ingestione.
-- **Accessibilità:** tema motion-reduced, controlli ARIA e duplicati visuali esclusi dal focus.
-- **Internazionalizzazione:** interfaccia italiana e inglese.
+- **3D globe:** day/night textures, atmosphere, tectonic plates, and animated camera.
+- **Live events:** earthquakes and volcanoes with severity, hover, selection, and ticker.
+- **Analysis:** event type, magnitude, and time-window filters; rolling 24-hour/7-day statistics.
+- **Time travel:** configurable event replay with an interactive playhead.
+- **Reliability:** cold-start retries, ETags, rate limiting, and ingestion health reporting.
+- **Accessibility:** reduced-motion support, ARIA controls, and non-focusable decorative duplicates.
+- **Internationalization:** English and Italian interface locales.
 
-## Stack
+## Technology stack
 
-| Layer | Tecnologie |
+| Layer | Technologies |
 |---|---|
 | Frontend | React, TypeScript, Vite, Three.js, react-three-fiber, Zustand |
 | Backend | FastAPI, Pydantic, SQLAlchemy, SSE, Prometheus |
 | Data | PostgreSQL, PostGIS, Alembic, pandas |
 | Ingestion | USGS GeoJSON, Smithsonian GVP RSS, GitHub Actions |
 | Quality | Ruff, Pytest, Vitest, ESLint, Playwright |
-| Deploy | Neon, Render Docker, Vercel |
+| Deployment | Neon, Render Docker, Vercel |
 
-## Avvio locale
+## Local development
 
-Prerequisiti: Docker, Node.js 20+ e Python 3.12+.
+Prerequisites: Docker, Node.js 20+, and Python 3.12+.
 
 ```bash
 cp .env.example .env
@@ -80,10 +81,10 @@ npm run dev
 
 - Dashboard: `http://localhost:5173`
 - API: `http://localhost:8000`
-- Swagger: `http://localhost:8000/docs`
-- Health: `http://localhost:8000/health`
+- Swagger UI: `http://localhost:8000/docs`
+- Health check: `http://localhost:8000/health`
 
-## Test
+## Quality checks
 
 ```bash
 # Frontend
@@ -93,28 +94,28 @@ npm run test
 npm run build
 npm run e2e
 
-# Backend, con Python 3.12 e PostGIS disponibili
+# Backend, with Python 3.12 and PostGIS available
 ruff check .
 pytest
 ```
 
-La CI replica i controlli backend contro un servizio PostGIS reale e pubblica il
-report Playwright come artefatto in caso di errore.
+CI runs backend checks against a real PostGIS service and uploads the Playwright
+report as an artifact when end-to-end tests fail.
 
-## Deploy
+## Deployment
 
-La procedura gratuita completa usa Neon per il database persistente, Render per
-l'API Docker, Vercel per il frontend e GitHub Actions per gli ETL.
+The free-tier deployment uses Neon for persistent data, Render for the Dockerized
+API, Vercel for the frontend, and GitHub Actions for scheduled ingestion.
 
-Consulta [docs/DEPLOY.md](docs/DEPLOY.md) per configurazione dei secret, migrazioni,
-CORS, popolamento iniziale e verifica end-to-end.
+See [docs/DEPLOY.md](docs/DEPLOY.md) for secrets, migrations, CORS, initial data
+loading, and end-to-end verification.
 
-## Fonti dati e asset
+## Data sources and assets
 
 - [USGS Earthquake Catalog API](https://earthquake.usgs.gov/fdsnws/event/1/)
 - [Smithsonian Global Volcanism Program](https://volcano.si.edu/)
-- texture terrestri NASA in pubblico dominio; attribuzioni in
+- NASA public-domain Earth textures; attribution is documented in
   [web/public/textures/README.md](web/public/textures/README.md)
 
-I dati rappresentano una visualizzazione informativa e non sostituiscono i
-bollettini ufficiali di protezione civile o degli enti scientifici competenti.
+This visualization is informational and does not replace official civil
+protection or scientific-agency bulletins.

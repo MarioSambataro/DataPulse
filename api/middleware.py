@@ -1,15 +1,9 @@
-"""Middleware trasversali dell'API: rate limiting, caching HTTP, metriche.
+"""Cross-cutting API middleware for rate limiting, HTTP caching, and metrics.
 
-Tre preoccupazioni "da API pubblica" tenute fuori dagli handler:
-
-  - `RateLimitMiddleware` — sliding window in-memory per IP (nessuna dipendenza
-    esterna; per un deploy multi-processo servirebbe uno store condiviso, scelta
-    documentata e accettata per un backend free-tier single-worker).
-  - `CacheMiddleware` — `Cache-Control` + `ETag` (con 304 su `If-None-Match`)
-    sulle sole risposte JSON piccole e cacheabili (`/events`, `/stats`).
-    Il feed SSE `/events/stream` NON passa dal buffering (path escluso).
-  - `MetricsMiddleware` — contatore richieste + istogramma latenza Prometheus,
-    esposti da `GET /metrics` (vedi `api.main`).
+`RateLimitMiddleware` uses a per-IP in-memory sliding window, appropriate for the
+single-worker portfolio deployment. `CacheMiddleware` adds `Cache-Control` and
+ETags to small cacheable JSON responses. `MetricsMiddleware` records Prometheus
+request counts and latency histograms exposed by `GET /metrics`.
 """
 
 from __future__ import annotations
@@ -29,27 +23,27 @@ from api.config import rate_limit_per_minute
 # Rate limiting
 # ---------------------------------------------------------------------------
 
-# Path esenti: liveness/observability non devono mai finire in 429.
+# Liveness and observability endpoints must never be rate limited.
 RATE_LIMIT_EXEMPT = {"/health", "/status", "/metrics", "/docs", "/openapi.json"}
 
 _WINDOW_SECONDS = 60.0
 
-# Stato condiviso a livello di modulo (l'app è un singleton di processo); i test
-# lo azzerano con `reset_rate_limiter()` per non ereditare hit dai test precedenti.
+# Module-level state is safe for the single-process deployment. Tests reset it to
+# avoid carrying requests across cases.
 _rate_hits: dict[str, deque[float]] = defaultdict(deque)
 
 
 def reset_rate_limiter() -> None:
-    """Svuota la finestra del rate limiter (uso nei test)."""
+    """Clear the rate-limit window; intended for test isolation."""
     _rate_hits.clear()
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Sliding window per IP: al più `RATE_LIMIT_PER_MINUTE` richieste/60s."""
+    """Enforce at most `RATE_LIMIT_PER_MINUTE` requests per IP every 60 seconds."""
 
     @staticmethod
     def _client_key(request: Request) -> str:
-        # Dietro proxy (Render) l'IP reale è il primo hop di X-Forwarded-For.
+        # Behind Render's proxy, the client IP is the first X-Forwarded-For hop.
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
             return forwarded.split(",")[0].strip()
@@ -68,7 +62,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             retry_after = max(1, int(_WINDOW_SECONDS - (now - hits[0])))
             return JSONResponse(
                 status_code=429,
-                content={"detail": "Troppe richieste: riprova tra qualche secondo."},
+                content={"detail": "Too many requests; try again in a few seconds."},
                 headers={"Retry-After": str(retry_after)},
             )
         hits.append(now)
@@ -76,20 +70,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 # ---------------------------------------------------------------------------
-# Caching HTTP (Cache-Control + ETag/304)
+# HTTP caching (Cache-Control + ETag/304)
 # ---------------------------------------------------------------------------
 
-# Solo endpoint GET con body JSON piccolo e semanticamente cacheabile.
+# Only small, semantically cacheable GET responses are eligible.
 CACHEABLE_PATHS = {"/events", "/stats"}
 CACHE_MAX_AGE_SECONDS = 30
 
 
 class CacheMiddleware(BaseHTTPMiddleware):
-    """`Cache-Control: public, max-age` + `ETag` deterministica sul body.
+    """Add public cache headers and a deterministic body-based ETag.
 
-    L'ETag è l'hash del payload: se il client rimanda `If-None-Match` identico
-    si risponde `304 Not Modified` senza body (i dati cambiano solo quando i
-    cron ETL scrivono, quindi la maggior parte dei refresh è una 304).
+    A matching `If-None-Match` receives an empty `304 Not Modified`. Because
+    scheduled ETL jobs change the data infrequently, most refreshes can use 304.
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -101,7 +94,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
         ):
             return response
 
-        # Consuma lo stream (body piccolo: pagine JSON già limitate da MAX_LIMIT).
+        # Consume the small response body; JSON pages are already bounded by MAX_LIMIT.
         body = b"".join([chunk async for chunk in response.body_iterator])
         etag = f'W/"{hashlib.sha256(body).hexdigest()[:32]}"'
 
@@ -122,31 +115,30 @@ class CacheMiddleware(BaseHTTPMiddleware):
 
 
 # ---------------------------------------------------------------------------
-# Metriche Prometheus
+# Prometheus metrics
 # ---------------------------------------------------------------------------
 
 HTTP_REQUESTS = Counter(
     "datapulse_http_requests_total",
-    "Richieste HTTP servite dall'API.",
+    "HTTP requests served by the API.",
     labelnames=("method", "path", "status"),
 )
 HTTP_LATENCY = Histogram(
     "datapulse_http_request_duration_seconds",
-    "Latenza delle richieste HTTP.",
+    "HTTP request latency.",
     labelnames=("method", "path"),
 )
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
-    """Registra contatore e latenza per route (template, non URL grezzo)."""
+    """Record request count and latency by route template."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         started = time.perf_counter()
         response = await call_next(request)
         elapsed = time.perf_counter() - started
 
-        # Il template della route ("/events") tiene bassa la cardinalità delle
-        # label; per i path non instradati (404) si usa un bucket unico.
+        # Route templates keep label cardinality low; unmatched paths share one bucket.
         route = request.scope.get("route")
         path = getattr(route, "path", None) or "<unmatched>"
 

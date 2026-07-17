@@ -1,10 +1,4 @@
-"""Test del feed SSE `/events/stream` e della query `events_since`.
-
-La query (watermark su `ingested_at`) si testa direttamente sulla sessione
-transazionale. Per l'endpoint si apre lo stream con `since` nel futuro remoto
-(nessun evento possibile) e si verifica il protocollo: `retry:` iniziale +
-keepalive; poi si chiude — TestClient supporta lo streaming con `.stream()`.
-"""
+"""Tests for the SSE feed and its ingestion-watermark query."""
 
 from __future__ import annotations
 
@@ -44,20 +38,18 @@ def test_events_since_watermark(db_session):
     db_session.flush()
 
     rows = events_since(db_session, watermark=now - timedelta(minutes=5))
-    assert [r.id for r in rows] == ["usgs:new1", "usgs:new2"]  # ASC per ingested_at
+    assert [r.id for r in rows] == ["usgs:new1", "usgs:new2"]  # Ascending ingestion time.
 
-    # Watermark avanzato all'ultimo elemento → nessun duplicato al giro dopo.
+    # Advancing to the final watermark prevents duplicates on the next poll.
     rows2 = events_since(db_session, watermark=rows[-1].ingested_at)
     assert rows2 == []
 
 
 def test_stream_protocol_keepalive(client, monkeypatch):
-    # Vita massima brevissima: il generatore termina da solo (in produzione
-    # l'EventSource si riconnette), così lo stream si può leggere fino in fondo
-    # senza che il test resti appeso a una risposta infinita.
+    # A short maximum lifetime lets the test consume the complete finite stream.
     monkeypatch.setenv("EVENTS_STREAM_POLL_SECONDS", "0.05")
     monkeypatch.setenv("EVENTS_STREAM_MAX_LIFETIME_S", "0.3")
-    # 'Z' e non '+00:00': il '+' in query string verrebbe decodificato come spazio.
+    # Use Z because a plus sign in a query string may decode as a space.
     future = (datetime.now(UTC) + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     with client.stream("GET", f"/events/stream?since={future}") as resp:
@@ -66,6 +58,6 @@ def test_stream_protocol_keepalive(client, monkeypatch):
         lines = [line for line in resp.iter_lines() if line]
 
     assert lines[0] == "retry: 5000"
-    # Con since nel futuro: solo keepalive/diagnostica (commenti), mai `event:`.
+    # A future watermark produces only keepalive or diagnostic comments.
     assert all(line.startswith(":") for line in lines[1:])
-    assert len(lines) >= 2  # almeno un giro di polling prima della chiusura
+    assert len(lines) >= 2  # At least one poll occurs before closure.

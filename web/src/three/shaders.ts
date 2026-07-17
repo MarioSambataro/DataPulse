@@ -1,14 +1,12 @@
-// Shader GLSL del globo. Tenuti in un modulo non-componente (niente JSX) così
-// il rendering React resta pulito e i sorgenti shader sono riusabili.
+// Globe GLSL kept in a non-component module for stable Fast Refresh behavior.
+// This keeps React rendering clean and makes shader sources reusable.
 
 /**
- * Atmosfera in due passate, ispirata allo scattering reale (niente "alone neon"):
- *  - passata esterna (BackSide): banda sottile di cielo appena oltre il lembo,
- *    che decade rapidamente verso lo spazio;
- *  - passata interna (FrontSide, sul globo): velo di scattering che tinge di blu
- *    solo il bordo del disco, come nelle foto satellitari.
- * Entrambe sono modulate da uSunDir: l'atmosfera si accende sul lato illuminato
- * e quasi scompare in ombra → l'occhio la legge come fisica, non come glow.
+ * Two-pass atmosphere inspired by physical scattering rather than a neon halo:
+ *  - the outer BackSide pass is a thin sky band that falls off into space;
+ *  - the inner front-side pass adds blue scattering only at the disk edge.
+ * uSunDir modulates both passes so the atmosphere brightens on the lit side.
+ * and nearly disappears in shadow so it reads as physical scattering.
  */
 export const atmosphereVertex = /* glsl */ `
   varying vec3 vWorldNormal;
@@ -33,10 +31,10 @@ export const atmosphereFragment = /* glsl */ `
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
     float rim = pow(1.0 - abs(dot(viewDir, n)), uPower);
     float NdotS = dot(n, uSunDir);
-    // Terminatore morbido: piena luce sul lato sole, residuo minimo in ombra.
+    // Soft terminator with full sunlight and minimal shadow-side residual.
     float day = smoothstep(-0.35, 0.45, NdotS);
     // Fascia crepuscolare: vicino al terminatore l'alone vira al caldo
-    // (scattering di Rayleigh "fake": alba/tramonto visti dallo spazio).
+    // Approximate orbital-view Rayleigh scattering at dawn and dusk.
     float twilight = 1.0 - smoothstep(0.0, 0.45, abs(NdotS));
     vec3 col = mix(uColor, vec3(1.0, 0.55, 0.34), twilight * 0.55);
     float a = rim * uIntensity * mix(0.05, 1.0, day);
@@ -45,9 +43,8 @@ export const atmosphereFragment = /* glsl */ `
 `;
 
 /**
- * Griglia tattica lat/lon procedurale, disegnata su una sfera appena sopra la
- * superficie con blending additivo. Linee sottili anti-aliasate via fwidth +
- * leggero fresnel per spegnere la griglia sul lembo (look HUD).
+ * Procedural latitude/longitude HUD grid drawn just above the surface with
+ * additive blending, fwidth antialiasing, and limb attenuation.
  */
 export const gridVertex = /* glsl */ `
   varying vec2 vUv;
@@ -64,8 +61,8 @@ export const gridVertex = /* glsl */ `
 
 export const gridFragment = /* glsl */ `
   uniform vec3 uColor;
-  uniform float uLat;     // numero di paralleli
-  uniform float uLon;     // numero di meridiani
+  uniform float uLat;     // Number of parallels.
+  uniform float uLon;     // Number of meridians.
   uniform float uOpacity;
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -78,7 +75,7 @@ export const gridFragment = /* glsl */ `
 
   void main() {
     float grid = max(line(vUv.y, uLat), line(vUv.x, uLon));
-    float rim = 0.35 + 0.65 * abs(dot(vView, vNormal)); // attenua sul lembo
+    float rim = 0.35 + 0.65 * abs(dot(vView, vNormal)); // Attenuate at the limb.
     float a = grid * uOpacity * rim;
     if (a < 0.01) discard;
     gl_FragColor = vec4(uColor, a);

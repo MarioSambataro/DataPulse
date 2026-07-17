@@ -15,9 +15,8 @@ import { SelectionMarker } from "./SelectionMarker";
 
 const GLOBE_RADIUS = 1.6;
 
-// Il terminatore giorno/notte segue l'ora reale: la direzione del sole è il
-// punto subsolare calcolato dall'UTC corrente, riallineato ogni 5 minuti
-// (≈1.25° di rotazione, sotto la soglia percettiva tra un refresh e l'altro).
+// The day/night terminator follows the current real-world solar direction.
+// Recalculate the UTC subsolar point every five minutes, below visible drift.
 const SUN_REFRESH_MS = 5 * 60 * 1000;
 
 function useSunDirection(): THREE.Vector3 {
@@ -41,7 +40,7 @@ function SceneBackground({ daytime }: { daytime: boolean }) {
   return null;
 }
 
-/** Scena 3D: globo + atmosfera + campo stellato, camera con auto-rotazione + drag. */
+/** 3D globe, atmosphere, stars, and interactive camera scene. */
 export function Scene({ daytime }: { daytime: boolean }) {
   const autoRotate = useStore((s) => s.autoRotate);
   const interacting = useStore((s) => s.interacting);
@@ -49,22 +48,22 @@ export function Scene({ daytime }: { daytime: boolean }) {
   const pauseRotation = useStore((s) => s.pauseRotation);
   const resumeRotationAfter = useStore((s) => s.resumeRotationAfter);
 
-  // Direzione del sole condivisa tra directionalLight e shader atmosfera:
-  // se divergono il terminatore dell'alone non combacia con quello del globo.
+  // Share one sun direction between directional light and atmosphere shader.
+  // Sharing direction keeps the atmospheric and surface terminators aligned.
   const sunDirection = useSunDirection();
 
   return (
     <Canvas
       className="scene-canvas"
-      // La camera parte lontana: il dolly-in dell'intro (CameraRig) la porta
-      // alla posizione operativa HOME_POSITION.
+      // CameraRig dollies the camera inward from its distant initial position.
+      // to the operational HOME_POSITION.
       camera={{ position: INTRO_POSITION, fov: 45, near: 0.1, far: 100 }}
       dpr={[1, 1.25]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <SceneBackground daytime={daytime} />
       {/* Illuminazione a tre punti: sole caldo, fill neutro basso, controluce
-          fredda sul lato in ombra (dà volume senza appiattire il terminatore). */}
+          cool fill on the shadow side adds volume without flattening the terminator. */}
       <ambientLight intensity={daytime ? 0.6 : 0.32} />
       <directionalLight
         position={[sunDirection.x * 5, sunDirection.y * 5, sunDirection.z * 5]}
@@ -77,24 +76,22 @@ export function Scene({ daytime }: { daytime: boolean }) {
       {!daytime && <Stars radius={80} depth={50} count={3500} factor={3.2} saturation={0} fade speed={0.4} />}
 
       <Globe radius={GLOBE_RADIUS} daytime={daytime} />
-      {/* Contesto geologico: confini di placca tettonica (toggle nell'HUD). */}
+      {/* Toggleable tectonic plate boundaries provide geological context. */}
       <PlateBoundaries radius={GLOBE_RADIUS} daytime={daytime} />
-      {/* Layer dati: epicentri sismici (instanced ping) + marker vulcani. */}
+      {/* Data layer with instanced seismic pings and volcano markers. */}
       <EventsLayer radius={GLOBE_RADIUS} />
-      {/* Indicatore di acquisizione sull'evento selezionato (click globo o ticker). */}
+      {/* Selection indicator for globe and ticker interactions. */}
       <SelectionMarker radius={GLOBE_RADIUS} daytime={daytime} />
       <Atmosphere radius={GLOBE_RADIUS} daytime={daytime} sunDirection={sunDirection} />
 
-      {/* Intro dolly-in + fly-to cinematico sull'evento selezionato. */}
+      {/* Intro dolly and cinematic selected-event fly-to. */}
       <CameraRig />
       <OrbitControls
         makeDefault
         enablePan={false}
         enableZoom
-        // L'auto-rotazione parte dall'intento utente ma si sospende durante ogni
-        // interazione (drag/hover/click) e riprende da sola dopo qualche secondo.
-        // Una selezione è uno stato operativo stabile: il punto resta in vista
-        // finché il pannello dettaglio non viene chiuso.
+        // Auto-rotation follows user preference but pauses during interaction.
+        // Interaction pauses rotation temporarily; a selection remains stable until closed.
         autoRotate={autoRotate && !interacting && !selectedId}
         autoRotateSpeed={0.35}
         rotateSpeed={0.5}

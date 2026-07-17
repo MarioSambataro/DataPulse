@@ -1,8 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// E2E smoke della dashboard in modalità mock (`?mock=1`): niente backend/DB,
-// il fixture statico public/mock-events.json alimenta globo/ticker/stat.
-// Si testa la build vera (vite preview), non il dev server.
+// Mock-mode dashboard E2E using the static event fixture and production preview build.
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,

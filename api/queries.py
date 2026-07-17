@@ -1,9 +1,8 @@
-"""Costruzione delle query SQLAlchemy per gli endpoint dell'API.
+"""SQLAlchemy query construction for API endpoints.
 
-Tenuta separata da `api.main` così la logica di filtro/ordinamento è isolata e
-testabile. Tutte le funzioni lavorano sull'ORM `db.models.Event` (con `geom`); la
-serializzazione verso il contratto pubblico (`api.schemas.Event`, senza `geom`) la
-fa FastAPI col `response_model`.
+Keeping filtering and ordering outside `api.main` makes them independently
+testable. Queries operate on the ORM model; FastAPI response models serialize the
+public contract without the internal PostGIS geometry.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from api.schemas import EventType
 
-# Limiti di paginazione di `GET /events`.
+# Pagination limits for `GET /events`.
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 1000
 
@@ -36,20 +35,20 @@ def _filters(
     near_lon: float | None,
     radius_km: float | None,
 ) -> list[ColumnElement[bool]]:
-    """Costruisce la lista di condizioni WHERE dai parametri di filtro."""
+    """Build SQLAlchemy WHERE conditions from event filter parameters."""
     conditions: list[ColumnElement[bool]] = []
 
     if event_type is not None:
         conditions.append(Event.event_type == event_type)
     if min_magnitude is not None:
-        # I record senza magnitudo (vulcani) sono esclusi quando il filtro è attivo.
+        # Records without a magnitude, such as volcanoes, are excluded.
         conditions.append(Event.magnitude >= min_magnitude)
     if start is not None:
         conditions.append(Event.occurred_at >= start)
     if end is not None:
         conditions.append(Event.occurred_at <= end)
 
-    # Bounding box: ogni lato è un limite indipendente e opzionale.
+    # Each bounding-box edge is an independent optional limit.
     if min_lat is not None:
         conditions.append(Event.lat >= min_lat)
     if max_lat is not None:
@@ -59,7 +58,7 @@ def _filters(
     if max_lon is not None:
         conditions.append(Event.lon <= max_lon)
 
-    # Vicinanza PostGIS: ST_DWithin su geography (metri) → usa l'indice GiST su geom.
+    # ST_DWithin on geography uses metres and can use the GiST geometry index.
     if near_lat is not None and near_lon is not None and radius_km is not None:
         point = cast(
             func.ST_SetSRID(func.ST_MakePoint(near_lon, near_lat), 4326),
@@ -87,7 +86,7 @@ def build_events_select(
     limit: int = DEFAULT_LIMIT,
     offset: int = 0,
 ) -> Select[tuple[Event]]:
-    """`SELECT` paginato e ordinato per `occurred_at` (default DESC), `id` come tiebreaker."""
+    """Build a paginated event SELECT with `id` as a stable tiebreaker."""
     conditions = _filters(
         event_type=event_type,
         min_magnitude=min_magnitude,
@@ -112,11 +111,8 @@ def build_events_select(
 def list_events(
     session: Session, **kwargs
 ) -> tuple[list[Event], int]:
-    """Esegue la query eventi: ritorna `(righe della pagina, totale che soddisfa i filtri)`.
-
-    Il totale ignora `limit`/`offset` (serve all'envelope di paginazione).
-    """
-    # Estrai i parametri che non riguardano il conteggio.
+    """Return the current page and total rows matching the filters."""
+    # Exclude parameters that do not affect the count query.
     count_kwargs = {
         k: v for k, v in kwargs.items() if k not in ("order", "limit", "offset")
     }
@@ -139,12 +135,10 @@ def list_events(
 
 
 def events_since(session: Session, watermark: datetime, limit: int = 200) -> list[Event]:
-    """Eventi ingeriti DOPO `watermark`, in ordine di ingestione (per il feed SSE).
+    """Return rows ingested after a watermark for the SSE feed.
 
-    Il watermark è su `ingested_at` (non `occurred_at`): l'ETL può ingerire eventi
-    retrodatati, e il feed live deve spingere ciò che è NUOVO nel DB, non ciò che è
-    appena accaduto. Ordinamento ASC così il client avanza il watermark leggendo
-    l'ultimo elemento.
+    The watermark uses `ingested_at`, because ETL may import historical events.
+    Ascending order lets the client advance it from the final row.
     """
     stmt = (
         select(Event)
@@ -156,7 +150,7 @@ def events_since(session: Session, watermark: datetime, limit: int = 200) -> lis
 
 
 def compute_stats(session: Session) -> dict:
-    """Aggregati per `GET /stats` (finestre rolling 24h/7g su `occurred_at`)."""
+    """Compute rolling 24-hour and 7-day aggregates for `GET /stats`."""
     now = session.scalar(select(func.now()))
     since_24h = now - timedelta(hours=24)
     since_7d = now - timedelta(days=7)
@@ -176,7 +170,7 @@ def compute_stats(session: Session) -> dict:
     max_magnitude_24h = session.scalar(
         select(func.max(Event.magnitude)).where(eq, Event.occurred_at >= since_24h)
     )
-    # Vulcani "attivi": numero GVP distinto (meta->volcano_number) con un evento negli ultimi 7g.
+    # Active volcanoes are distinct GVP numbers observed within the last seven days.
     active_volcanoes_7d = session.scalar(
         select(func.count(func.distinct(Event.meta["volcano_number"].astext))).where(
             volcano, Event.occurred_at >= since_7d

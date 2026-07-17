@@ -1,19 +1,9 @@
-"""Feed live Server-Sent Events: `GET /events/stream`.
+"""Live Server-Sent Events feed at `GET /events/stream`.
 
-Push dei NUOVI eventi (watermark su `ingested_at`) senza WebSocket: SSE è
-unidirezionale, passa ovunque (HTTP puro), e `EventSource` lato browser fa
-retry automatico. Il server fa polling interno del DB (default 5s, env
-`EVENTS_STREAM_POLL_SECONDS`) — con i cron ETL orari è più che sufficiente e
-tiene il design semplice (niente LISTEN/NOTIFY, niente broker).
-
-Protocollo:
-  - `event: events`  + `data: [Event, ...]`    → nuovi eventi ingeriti;
-  - commento keepalive (`: ka`) a ogni giro a vuoto, così proxy e client
-    distinguono "nessuna novità" da "connessione morta";
-  - `retry: 5000` iniziale per il backoff dell'EventSource.
-
-Le query girano in thread (`anyio.to_thread`) con una sessione APERTA E CHIUSA
-per ciclo: mai tenere una connessione DB parcheggiata per la vita dello stream.
+SSE pushes newly ingested rows using an `ingested_at` watermark. The server polls
+the database at a configurable interval, sends keepalive comments when idle, and
+sets an initial EventSource retry delay. Each poll uses a short-lived session in a
+worker thread, so a database connection is never held for the stream lifetime.
 """
 
 from __future__ import annotations
@@ -33,8 +23,8 @@ router = APIRouter(tags=["events"])
 
 
 def _fetch_since(watermark: datetime) -> tuple[list[dict], datetime]:
-    """Legge i nuovi eventi in una sessione usa-e-getta; ritorna (payload, watermark)."""
-    # Import locale per permettere ai test di sostituire la session factory.
+    """Read new events in a short-lived session and return payload plus watermark."""
+    # Local import lets tests replace the session factory.
     from api.db import get_sessionmaker
 
     with get_sessionmaker()() as session:
@@ -52,10 +42,10 @@ async def stream_events(
     request: Request,
     since: Annotated[
         datetime | None,
-        Query(description="Watermark iniziale su ingested_at (default: adesso)."),
+        Query(description="Initial ingested_at watermark; defaults to the current time."),
     ] = None,
 ) -> StreamingResponse:
-    """Stream SSE dei nuovi eventi ingeriti dopo `since` (default: da adesso in poi)."""
+    """Stream events ingested after `since`, defaulting to new arrivals only."""
     from api.config import stream_max_lifetime_seconds, stream_poll_seconds
 
     poll = stream_poll_seconds()
@@ -67,8 +57,7 @@ async def stream_events(
         deadline = anyio.current_time() + max_lifetime
         yield "retry: 5000\n\n"
         while True:
-            # Chiusura periodica lato server (l'EventSource si riconnette da solo):
-            # niente connessioni zombie e generatore sempre terminante.
+            # Periodic closure avoids zombie connections; EventSource reconnects.
             if anyio.current_time() >= deadline:
                 return
             if await request.is_disconnected():
@@ -76,7 +65,7 @@ async def stream_events(
             try:
                 payload, watermark = await anyio.to_thread.run_sync(_fetch_since, watermark)
             except Exception:
-                # DB momentaneamente giù: non uccidere lo stream, segnala e riprova.
+                # A transient database outage is signalled without killing the feed.
                 yield ": db-error\n\n"
                 await anyio.sleep(poll)
                 continue
@@ -92,7 +81,7 @@ async def stream_events(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            # Disattiva il buffering di eventuali reverse proxy (nginx).
+            # Disable buffering by compatible reverse proxies such as nginx.
             "X-Accel-Buffering": "no",
         },
     )

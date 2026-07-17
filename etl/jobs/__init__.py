@@ -1,1 +1,1 @@
-"""Job di ingestion. Implementati nelle sezioni 3 (terremoti) e 4 (vulcani)."""
+"""DataPulse ingestion jobs for earthquakes and volcanoes."""

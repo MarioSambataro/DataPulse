@@ -1,9 +1,6 @@
-// Scale pure di colore/dimensione per il rendering degli eventi (SEZIONE 7).
-// Nessuna dipendenza da three → testabili in CI senza WebGL. Sono la singola
-// fonte di verità della palette eventi: usate sia per i colori per-istanza degli
-// epicentri (passati allo shader) sia per i marker vulcano e il pannello dettaglio.
+// Pure color and size scales shared by shaders, volcano markers, and details.
 
-export type RGB = [number, number, number]; // componenti in [0..1] (comode per THREE.Color)
+export type RGB = [number, number, number]; // Components in [0..1] for THREE.Color.
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
@@ -15,30 +12,29 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [
   lerp(a[2], b[2], t),
 ];
 
-// Stop del gradiente severità: verde (basso) → ambra (medio) → rosso (alto).
+// Severity gradient stops: green, amber, and red.
 const LOW: RGB = [0.18, 0.88, 0.42]; // #2ee06b
-const MID: RGB = [1.0, 0.69, 0.0]; // #ffb000 (ambra del tema)
+const MID: RGB = [1.0, 0.69, 0.0]; // Theme amber.
 const HIGH: RGB = [1.0, 0.18, 0.1]; // #ff2e1a
 
 /**
- * Colore di un evento dalla sua `severity` (0..1, già normalizzata dall'ETL).
- * `null`/assente → trattata come 0.5 (medio) così i record senza severità restano visibili.
+ * Map normalized severity to color. Missing values use a visible midpoint.
  */
 export function severityColor(severity: number | null | undefined): RGB {
   const s = clamp01(severity ?? 0.5);
   return s <= 0.5 ? mix(LOW, MID, s / 0.5) : mix(MID, HIGH, (s - 0.5) / 0.5);
 }
 
-/** Stesso gradiente severità ma come stringa CSS `rgb()`, per i componenti DOM (tooltip, pannelli). */
+/** Return the severity gradient as a CSS rgb() string for DOM components. */
 export function severityCss(severity: number | null | undefined): string {
   const [r, g, b] = severityColor(severity);
   return `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)})`;
 }
 
 /**
- * Dimensione (in frazione del raggio del globo) di un epicentro a partire dalla magnitudo.
+ * Map earthquake magnitude to a marker size relative to globe radius.
  * Magnitudo tipiche 1..8; clampata a [0..8]. `null` → dimensione minima.
- * Curva leggermente più che lineare per dare risalto ai forti senza saturare i deboli.
+ * A mild quadratic curve emphasizes strong events without hiding weak ones.
  */
 export function magnitudeSize(magnitude: number | null | undefined): number {
   const m = Math.min(8, Math.max(0, magnitude ?? 0));

@@ -1,7 +1,7 @@
-// Ticker eventi live: marquee orizzontale lungo il bordo inferiore con gli ultimi
-// eventi (rispetta i filtri attivi). Auto-scroll continuo (in pausa su hover);
-// click su una riga → seleziona l'evento (riusa select/selectedId + DetailPanel +
-// SelectionMarker sul globo). Niente flicker: lista derivata dallo store.
+// Filter-aware live event marquee with continuous scrolling and event selection.
+
+
+
 
 import { Activity, Mountain, Radio } from "lucide-react";
 import { useMemo } from "react";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/store/useStore";
 import type { Event } from "@/types";
 
-// Quanti eventi (più recenti) scorrere nel ticker.
+// Number of recent events displayed in the ticker.
 const MAX_ITEMS = 40;
 
 function TickerItem({
@@ -79,7 +79,7 @@ export function EventTicker() {
   const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
 
-  // Eventi già ordinati desc dall'API; applichiamo i filtri e tagliamo a MAX_ITEMS.
+  // Apply filters to API-descending events and cap the ticker.
   const items = useMemo(
     () => filterEvents(events, filters).slice(0, MAX_ITEMS),
     [events, filters],
@@ -95,7 +95,7 @@ export function EventTicker() {
     );
   }
 
-  // Velocità proporzionale al numero di item per uno scorrimento costante.
+  // Scale duration by item count for consistent scroll speed.
   const duration = Math.max(24, items.length * 3.4);
 
   return (
@@ -105,7 +105,7 @@ export function EventTicker() {
           className="absolute left-0 top-0 flex h-full animate-ticker-scroll items-center whitespace-nowrap will-change-transform group-hover:[animation-play-state:paused]"
           style={{ animationDuration: `${duration}s` }}
         >
-          {/* Lista duplicata per il loop continuo senza stacco. */}
+          {/* Duplicate the list for a seamless loop. */}
           {[0, 1].map((dup) =>
             items.map((ev) => (
               <TickerItem

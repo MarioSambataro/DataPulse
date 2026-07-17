@@ -1,8 +1,4 @@
-"""Test offline di parsing/normalizzazione USGS (niente rete, niente DB).
-
-Lavorano sul fixture `fixtures/usgs_sample.geojson` (5 feature, di cui una senza
-`code` da scartare).
-"""
+"""Offline USGS parsing and normalization tests."""
 
 from __future__ import annotations
 
@@ -29,10 +25,10 @@ def df(geojson):
 
 
 def test_drops_feature_without_code(geojson, df):
-    # 5 feature nel fixture, 1 senza `code` -> 4 righe normalizzate.
+    # Five source features minus one missing code yields four normalized rows.
     assert len(geojson["features"]) == 5
     assert len(df) == 4
-    assert "usgs:" not in df["id"].tolist()  # nessun id malformato
+    assert "usgs:" not in df["id"].tolist()  # No malformed empty identifier.
     assert all(i.startswith("usgs:") for i in df["id"])
 
 
@@ -43,7 +39,7 @@ def test_id_is_deterministic(df):
 
 def test_columns_match_schema(df):
     assert list(df.columns) == list(normalize.EVENT_COLUMNS)
-    assert "geom" not in df.columns  # geom la popola il trigger DB
+    assert "geom" not in df.columns  # The database trigger supplies geometry.
 
 
 def test_source_and_type_constant(df):
@@ -74,7 +70,7 @@ def test_severity_linear_clamp(df):
     # mag null -> severity None
     assert by_id["usgs:73matt"]["severity"] is None
     assert by_id["usgs:73matt"]["magnitude"] is None
-    # mag negativa -> clamp a 0
+    # Negative magnitudes clamp to zero.
     assert by_id["usgs:0212neg"]["severity"] == 0.0
 
 
@@ -83,7 +79,7 @@ def test_severity_formula_units():
     assert normalize.severity_from_magnitude(float("nan")) is None
     assert normalize.severity_from_magnitude(-2.0) == 0.0
     assert normalize.severity_from_magnitude(5.0) == pytest.approx(0.5)
-    assert normalize.severity_from_magnitude(12.0) == 1.0  # clamp al tetto
+    assert normalize.severity_from_magnitude(12.0) == 1.0  # Clamp at the upper bound.
 
 
 def test_meta_subset_preserved(df):
@@ -92,7 +88,7 @@ def test_meta_subset_preserved(df):
     assert meta["net"] == "us"
     assert meta["magType"] == "mww"
     assert meta["status"] == "reviewed"
-    assert "place" not in meta  # `place` è colonna a sé, non in meta
+    assert "place" not in meta  # Place has its own normalized column.
 
 
 def test_to_records_clean_types(df):
@@ -101,13 +97,13 @@ def test_to_records_clean_types(df):
     for rec in records:
         assert set(rec.keys()) == set(normalize.EVENT_COLUMNS)
         assert isinstance(rec["occurred_at"], datetime)
-        # niente NaN residui (devono essere None)
+        # Native records contain None rather than residual NaN values.
         for value in rec.values():
             assert not (isinstance(value, float) and math.isnan(value))
 
 
 def test_duplicate_code_keeps_last():
-    # Due feature con lo stesso code -> una sola riga (l'ultima vince).
+    # Duplicate source codes retain only the latest row.
     geojson = {
         "features": [
             {

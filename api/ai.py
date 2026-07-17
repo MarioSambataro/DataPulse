@@ -1,20 +1,10 @@
-"""Endpoint AI (DeepSeek): query in linguaggio naturale + briefing giornaliero.
+"""Optional DeepSeek endpoints for natural-language filters and briefings.
 
-Due capacità, entrambe volutamente "sottili" (l'LLM non tocca mai il DB):
-
-  - `POST /ai/query` — traduce una domanda in linguaggio naturale nei parametri
-    di filtro di `GET /events` (event_type, min_magnitude, start/end, vicinanza
-    geografica). Il modello produce SOLO il JSON dei filtri: la query vera la fa
-    il backend con la solita strada tipizzata/parametrizzata. Niente SQL
-    generato dall'LLM.
-  - `GET /ai/briefing` — bollettino sintetico in italiano generato dai numeri
-    reali (`compute_stats` + top eventi 24h), cache in-memory 15 minuti per non
-    bruciare token a ogni refresh dell'HUD.
-
-Provider: DeepSeek, API OpenAI-compatibile (`/chat/completions`). Model di
-default `deepseek-v4-flash` (i legacy `deepseek-chat`/`deepseek-reasoner` sono
-deprecati dal 2026-07-24). Config via env: `DEEPSEEK_API_KEY` (obbligatoria,
-altrimenti 503), `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL`.
+The model never accesses the database. `POST /ai/query` returns validated filter
+parameters that the normal typed query path executes. `GET /ai/briefing` receives
+only computed statistics and top events, then caches its Italian SITREP for 15
+minutes. Configuration uses `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, and
+`DEEPSEEK_BASE_URL`.
 """
 
 from __future__ import annotations
@@ -42,21 +32,21 @@ BRIEFING_TTL_SECONDS = 15 * 60
 
 
 # ---------------------------------------------------------------------------
-# Client DeepSeek (OpenAI-compatibile)
+# OpenAI-compatible DeepSeek client
 # ---------------------------------------------------------------------------
 
 
 async def _chat(messages: list[dict], *, json_mode: bool = False) -> str:
-    """Una chiamata a `/chat/completions`; ritorna il testo della risposta.
+    """Call `/chat/completions` and return the assistant text.
 
-    Isolata in una funzione modulo così i test possono sostituirla (monkeypatch)
-    senza rete né API key.
+    The isolated module function can be replaced in tests without network access
+    or an API key.
     """
     api_key = deepseek_api_key()
     if not api_key:
         raise HTTPException(
             status_code=503,
-            detail="AI non configurata: impostare DEEPSEEK_API_KEY sul backend.",
+            detail="AI is not configured; set DEEPSEEK_API_KEY on the backend.",
         )
 
     body: dict = {
@@ -76,35 +66,35 @@ async def _chat(messages: list[dict], *, json_mode: bool = False) -> str:
                 json=body,
             )
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"DeepSeek non raggiungibile: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"DeepSeek is unreachable: {exc}") from exc
 
     if resp.status_code != 200:
         raise HTTPException(
             status_code=502,
-            detail=f"DeepSeek ha risposto {resp.status_code}: {resp.text[:200]}",
+            detail=f"DeepSeek returned {resp.status_code}: {resp.text[:200]}",
         )
     try:
         return resp.json()["choices"][0]["message"]["content"]
     except (KeyError, IndexError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="Risposta DeepSeek malformata.") from exc
+        raise HTTPException(status_code=502, detail="Malformed DeepSeek response.") from exc
 
 
 # ---------------------------------------------------------------------------
-# POST /ai/query — linguaggio naturale → filtri di GET /events
+# POST /ai/query — natural language to GET /events filters
 # ---------------------------------------------------------------------------
 
 
 class AiQueryIn(BaseModel):
     question: str = Field(
-        min_length=3, max_length=300, description="Domanda in linguaggio naturale."
+        min_length=3, max_length=300, description="Natural-language question."
     )
 
 
 class AiFilters(BaseModel):
-    """Sottoinsieme dei parametri di `GET /events` che l'LLM può valorizzare.
+    """Validated subset of `GET /events` parameters available to the model.
 
-    `extra='ignore'`: campi inventati dal modello vengono scartati, non
-    propagati. I bound replicano quelli dell'endpoint (validazione difensiva).
+    Unknown fields are discarded, and bounds mirror the public endpoint as a
+    defensive validation layer.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -119,7 +109,7 @@ class AiFilters(BaseModel):
 
 
 class AiQueryOut(BaseModel):
-    answer: str = Field(description="Parafrasi breve di come è stata interpretata la domanda.")
+    answer: str = Field(description="Short paraphrase of the interpreted question.")
     filters: AiFilters
     model: str
 
@@ -148,7 +138,7 @@ Regole:
 
 @router.post("/query", response_model=AiQueryOut)
 async def ai_query(body: AiQueryIn) -> AiQueryOut:
-    """Traduce la domanda nei filtri di `GET /events` (il fetch lo fa il client)."""
+    """Translate a question into validated `GET /events` filters."""
     now_iso = datetime.now(UTC).isoformat(timespec="seconds")
     content = await _chat(
         [
@@ -162,9 +152,9 @@ async def ai_query(body: AiQueryIn) -> AiQueryOut:
         filters = AiFilters.model_validate(parsed.get("filters") or {})
         answer = str(parsed.get("answer") or "").strip() or "Filtri applicati."
     except (json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="L'AI ha prodotto filtri non validi.") from exc
+        raise HTTPException(status_code=502, detail="The AI produced invalid filters.") from exc
 
-    # Coerenza vicinanza: o tutti e tre o nessuno (stessa regola di GET /events).
+    # Proximity fields follow the same all-or-none rule as GET /events.
     near = (filters.near_lat, filters.near_lon, filters.radius_km)
     if any(v is not None for v in near) and any(v is None for v in near):
         filters.near_lat = filters.near_lon = filters.radius_km = None
@@ -173,7 +163,7 @@ async def ai_query(body: AiQueryIn) -> AiQueryOut:
 
 
 # ---------------------------------------------------------------------------
-# GET /ai/briefing — bollettino sintetico dai dati reali
+# GET /ai/briefing — concise briefing from real data
 # ---------------------------------------------------------------------------
 
 
@@ -184,7 +174,7 @@ class BriefingOut(BaseModel):
     cached: bool
 
 
-# Cache modulo-level: {"text", "generated_at", "expires_monotonic"}.
+# Module-level cache: {"text", "generated_at", "expires_monotonic"}.
 _briefing_cache: dict | None = None
 
 
@@ -201,7 +191,7 @@ def _top_quakes_24h(session: Session, limit: int = 5) -> list[Event]:
 
 @router.get("/briefing", response_model=BriefingOut)
 async def ai_briefing(session: Annotated[Session, Depends(get_session)]) -> BriefingOut:
-    """Bollettino in italiano (2-4 frasi) generato dagli aggregati reali; cache 15 min."""
+    """Return a 2–4 sentence Italian briefing from real aggregates, cached for 15 minutes."""
     global _briefing_cache
     if _briefing_cache and time.monotonic() < _briefing_cache["expires_monotonic"]:
         return BriefingOut(

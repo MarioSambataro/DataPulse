@@ -1,30 +1,30 @@
 import { expect, test } from "@playwright/test";
 
-// Smoke E2E in modalità mock: la dashboard si avvia, il globo WebGL renderizza,
-// l'HUD mostra dati e il time-travel si attiva. Lo screenshot del globo viene
-// allegato al report (artefatto in CI).
+// Mock-mode E2E covering startup, WebGL rendering, HUD data, and replay controls.
+
+
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/?mock=1");
 });
 
-test("la dashboard si avvia con globo e HUD", async ({ page }) => {
+test("the dashboard starts with the globe and HUD", async ({ page }) => {
   await expect(page).toHaveTitle(/DataPulse/i);
 
-  // Canvas WebGL montato (scena three.js).
+  // The Three.js WebGL canvas is mounted.
   await expect(page.locator("canvas")).toBeVisible();
 
-  // HUD: brand (nell'header: lo splash ha lo stesso testo), stat e filtri.
+  // Verify brand, statistics, and filters in the HUD.
   await expect(page.getByRole("banner").getByText("Geo-Tectonic Monitor")).toBeVisible();
   await expect(page.getByLabel("Statistiche 24 ore")).toBeVisible();
   await expect(page.getByLabel("Filtri")).toBeVisible();
 
-  // Il feed mock è caricato: il contatore eventi appare nella top bar.
+  // The top bar displays an event count after the mock feed loads.
   await expect(page.getByText(/eventi/i).first()).toBeVisible({ timeout: 15_000 });
 });
 
-test("il replay time-travel si attiva e si chiude", async ({ page }) => {
-  // Attendi che i dati mock siano caricati (il bottone Replay si abilita).
+test("replay can be opened and closed", async ({ page }) => {
+  // Wait for mock data to enable replay.
   const replay = page.getByRole("button", { name: "Replay" });
   await expect(replay).toBeEnabled({ timeout: 15_000 });
 
@@ -36,8 +36,8 @@ test("il replay time-travel si attiva e si chiude", async ({ page }) => {
   await expect(page.getByLabel("Timeline eventi")).toHaveCount(0);
 });
 
-test("screenshot del globo per il report", async ({ page }, testInfo) => {
-  // Lascia finire l'intro (dolly-in ~2.5s) e stabilizzare il rendering.
+test("capture the globe for the report", async ({ page }, testInfo) => {
+  // Allow the intro dolly to finish and rendering to stabilize.
   await expect(page.locator("canvas")).toBeVisible();
   await page.waitForTimeout(4_000);
 

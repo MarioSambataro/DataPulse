@@ -8,7 +8,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { useStore } from "./store/useStore";
 import "./index.css";
 
-// Vista deep-linkabile: ?view=day|night imposta la modalità iniziale del globo.
+// Deep-linkable view: ?view=day|night sets the initial globe mode.
 const view = new URLSearchParams(window.location.search).get("view");
 if (view === "day" || view === "night") useStore.getState().setGlobeView(view);
 

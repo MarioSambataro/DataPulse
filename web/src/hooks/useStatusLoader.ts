@@ -1,5 +1,4 @@
-// Hook di osservabilità: GET /status periodico (60s) + latenza misurata della
-// chiamata. In mock non c'è backend → tutto null, il pannello mostra n/d.
+// Poll API status and measure latency; mock mode has no backend status.
 
 import { useEffect, useState } from "react";
 

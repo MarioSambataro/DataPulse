@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
 
-/** Unico controllo: tema dell'interfaccia e illuminazione del globo si muovono insieme. */
+/** Single control that keeps the interface theme and globe lighting synchronized. */
 export function ModeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const { t } = useLocale();

@@ -1,11 +1,4 @@
-// Hook delle statistiche 24h/7g per il pannello SITREP.
-//
-// - Modalità reale: GET /stats al mount + polling (POLL_INTERVAL_MS). In caso di
-//   errore ricade sulle stat derivate dagli eventi in store (fallback).
-// - Modalità ?mock=1: niente endpoint /stats → sempre derivate dagli eventi.
-//
-// `source` distingue stat reali ("api") da derivate ("derived"), così il pannello
-// può mostrare un tag MOCK/OFFLINE senza nascondere i numeri.
+// Load rolling statistics from the API, with client-derived mock and outage fallback.
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -30,12 +23,11 @@ export function useStatsLoader(): StatsLoadState {
   const [apiStats, setApiStats] = useState<Stats | null>(null);
   const [apiError, setApiError] = useState(false);
 
-  // Stat derivate dagli eventi in memoria (fallback / mock). Ricalcolate quando
-  // cambiano gli eventi (ad ogni refresh del polling eventi).
+  // Recompute fallback statistics whenever in-memory events change.
   const derived = useMemo(() => (events.length ? deriveStats(events) : null), [events]);
 
   useEffect(() => {
-    if (mock) return; // niente fetch: solo derivate
+    if (mock) return; // Mock mode uses derived values only.
     let cancelled = false;
     let controller: AbortController | null = null;
 
@@ -50,7 +42,7 @@ export function useStatsLoader(): StatsLoadState {
         setApiError(false);
       } catch {
         if (cancelled || signal.aborted) return;
-        setApiError(true); // i numeri restano dai derivati
+        setApiError(true); // Derived values remain available.
       }
     };
 
@@ -63,7 +55,7 @@ export function useStatsLoader(): StatsLoadState {
     };
   }, [mock]);
 
-  // Risoluzione: API reale > derivate. Lo status riflette se i numeri sono pronti.
+  // Prefer API values and fall back to derived statistics.
   if (mock || apiError || !apiStats) {
     const status: StatsStatus = derived ? "ready" : mock ? "loading" : apiError ? "error" : "loading";
     return { stats: derived, status, source: "derived" };

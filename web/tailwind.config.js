@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-// Tailwind + design tokens shadcn (New York). I colori sono guidati dalle CSS
+// Tailwind with shadcn New York design tokens driven by CSS variables.
 // variables definite in src/index.css (tema slate + accento teal, light/dark).
 export default {
   darkMode: ["class"],
