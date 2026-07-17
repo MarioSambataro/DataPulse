@@ -11,7 +11,7 @@ export function LanguageToggle() {
     <Button
       variant="ghost"
       size="sm"
-      className="h-8 gap-1.5 px-2.5"
+      className="h-9 gap-1 px-2 sm:h-8 sm:gap-1.5 sm:px-2.5"
       aria-label={`Switch language to ${next}`}
       title={`Switch language to ${next}`}
       onClick={toggleLocale}

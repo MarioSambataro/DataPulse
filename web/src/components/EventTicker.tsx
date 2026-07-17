@@ -1,8 +1,5 @@
 // Filter-aware live event marquee with continuous scrolling and event selection.
 
-
-
-
 import { Activity, Mountain, Radio } from "lucide-react";
 import { useMemo } from "react";
 
@@ -32,7 +29,7 @@ function TickerItem({
     <button
       type="button"
       className={cn(
-        "flex h-full shrink-0 items-center gap-2 border-r border-border/50 px-3.5 text-xs transition-colors hover:bg-primary/10",
+        "flex h-full shrink-0 items-center gap-1.5 border-r border-border/50 px-2.5 text-xs transition-colors hover:bg-primary/10 sm:gap-2 sm:px-3.5",
         selected && "bg-primary/15",
       )}
       onClick={() => onSelect(ev.id)}
@@ -50,7 +47,7 @@ function TickerItem({
           M{ev.magnitude?.toFixed(1) ?? "?"}
         </span>
       )}
-      <span className="max-w-[220px] truncate text-foreground/90">{ev.place ?? ev.title}</span>
+      <span className="max-w-[150px] truncate text-foreground/90 sm:max-w-[220px]">{ev.place ?? ev.title}</span>
       <span className="font-mono text-[10px] text-muted-foreground">{timeAgo(ev.occurred_at)}</span>
     </button>
   );
@@ -59,11 +56,11 @@ function TickerItem({
 function TickerFrame({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="hud-in pointer-events-none absolute inset-x-0 bottom-[76px] z-20 px-3 sm:bottom-20 sm:px-4"
+      className="hud-in pointer-events-none absolute inset-x-0 bottom-[68px] z-20 px-3 sm:bottom-20 sm:px-4"
       style={{ animationDelay: "1500ms" }}
     >
       <div className="glass pointer-events-auto flex h-10 items-stretch overflow-hidden rounded-lg">
-        <span className="flex shrink-0 items-center gap-1.5 bg-primary px-3.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-foreground">
+        <span className="flex shrink-0 items-center gap-1.5 bg-primary px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-foreground sm:px-3.5">
           <Radio className="size-3" /> Live
         </span>
         {children}

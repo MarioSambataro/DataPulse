@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 
 // Mock-mode E2E covering startup, WebGL rendering, HUD data, and replay controls.
 
-
-
 test.beforeEach(async ({ page }) => {
   await page.goto("/?mock=1");
 });
@@ -43,4 +41,24 @@ test("capture the globe for the report", async ({ page }, testInfo) => {
 
   const shot = await page.screenshot({ fullPage: false });
   await testInfo.attach("globe", { body: shot, contentType: "image/png" });
+});
+
+test("the mobile HUD fits the viewport and exposes every tool", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?mock=1");
+
+  await expect(page.getByRole("banner")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Strumenti dashboard" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Dati" }).click();
+  const mobilePanel = page.getByRole("complementary", { name: "Dati" });
+  await expect(mobilePanel.getByLabel("Statistiche 24 ore")).toBeVisible();
+
+  await page.getByRole("button", { name: "Filtri" }).click();
+  await expect(page.getByRole("complementary", { name: "Filtri" }).getByLabel("Filtri")).toBeVisible();
+
+  const overflows = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(overflows).toBe(false);
 });
