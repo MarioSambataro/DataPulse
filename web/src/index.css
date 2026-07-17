@@ -181,6 +181,43 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.mobile-drawer-backdrop {
+  animation: mobile-backdrop-in 180ms ease-out both;
+}
+
+.mobile-drawer {
+  border-right: 1px solid rgb(148 163 184 / 0.16);
+  background: rgb(7 13 23 / 0.94);
+  box-shadow: 24px 0 64px rgb(0 0 0 / 0.42);
+  backdrop-filter: blur(24px);
+  animation: mobile-drawer-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.day-mode .mobile-drawer {
+  border-right-color: rgb(107 137 151 / 0.22);
+  background: rgb(248 252 252 / 0.94);
+  box-shadow: 24px 0 64px rgb(51 78 89 / 0.2);
+}
+
+.ai-fab {
+  background: linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.72));
+  box-shadow:
+    0 14px 34px hsl(var(--primary) / 0.28),
+    0 0 0 1px hsl(var(--primary-foreground) / 0.12) inset;
+  animation: ai-fab-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ai-fab:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow:
+    0 18px 42px hsl(var(--primary) / 0.34),
+    0 0 0 1px hsl(var(--primary-foreground) / 0.18) inset;
+}
+
+.ai-chat-sheet {
+  animation: ai-sheet-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .scene-well {
   background:
     radial-gradient(58% 62% at 50% 43%, rgb(15 83 104 / 0.12) 0%, transparent 64%),
@@ -208,8 +245,35 @@
   }
 }
 
+@keyframes mobile-drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes mobile-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ai-fab-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.86); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ai-sheet-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hud-in {
+    animation-duration: 0.01ms;
+  }
+
+  .mobile-drawer,
+  .mobile-drawer-backdrop,
+  .ai-fab,
+  .ai-chat-sheet {
     animation-duration: 0.01ms;
   }
 }
