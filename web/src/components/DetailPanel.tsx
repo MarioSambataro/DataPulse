@@ -1,8 +1,5 @@
 // DOM detail panel for the selected globe event, closed by its button or Escape.
 
-
-
-
 import { Activity, Mountain, X } from "lucide-react";
 import { useEffect } from "react";
 
@@ -59,7 +56,7 @@ export function DetailPanel() {
 
   return (
     <Card
-      className="glass pointer-events-auto absolute bottom-24 left-3 z-30 w-[300px] max-w-[82vw] overflow-hidden p-0 sm:left-4"
+      className="glass pointer-events-auto absolute bottom-[122px] left-3 right-3 z-30 w-auto max-w-none overflow-hidden p-0 sm:bottom-24 sm:left-4 sm:right-auto sm:w-[300px] sm:max-w-[82vw]"
       aria-live="polite"
     >
       {/* Event type, severity, and close control. */}

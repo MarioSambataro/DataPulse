@@ -6,7 +6,6 @@
    DataPulse enterprise design system (shadcn / New York).
    Neutral slate foundation with a teal accent. ThemeProvider
    synchronizes light/dark UI state with the 3D globe.
-
    ============================================================ */
 
 @layer base {
@@ -115,6 +114,7 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     overflow: hidden;
+    overscroll-behavior: none;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
@@ -165,6 +165,20 @@
 
 .app-shell {
   background: #03070d;
+  min-height: 100dvh;
+}
+
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.mobile-hud-panel {
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .scene-well {

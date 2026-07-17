@@ -1,8 +1,5 @@
 // Replay slider, play/pause, and speed controls; unmounting stops the local ticker.
 
-
-
-
 import { FastForward, Pause, Play, X } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
@@ -53,9 +50,9 @@ export function TimeBar() {
     setPlayback({ speed: PLAYBACK_SPEEDS[(speedIdx + 1) % PLAYBACK_SPEEDS.length].value });
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-[124px] z-20 flex justify-center px-3 sm:bottom-32">
-      <div className="glass pointer-events-auto flex w-full max-w-xl items-center gap-2.5 rounded-xl px-3 py-2">
-        <Badge variant="warning" className="shrink-0 uppercase tracking-[0.14em]">
+    <div className="pointer-events-none absolute inset-x-0 bottom-[116px] z-20 flex justify-center px-3 sm:bottom-32">
+      <div className="glass pointer-events-auto flex w-full max-w-xl flex-wrap items-center gap-2 rounded-xl px-3 py-2 sm:flex-nowrap sm:gap-2.5">
+        <Badge variant="warning" className="hidden shrink-0 uppercase tracking-[0.14em] sm:inline-flex">
           {t("replay")}
         </Badge>
 
@@ -87,14 +84,14 @@ export function TimeBar() {
           value={[playback.playhead ?? range.max]}
           onValueChange={([v]) => setPlayback({ playhead: v, playing: false })}
           aria-label={t("eventTimeline")}
-          className="flex-1"
+          className="order-last basis-full sm:order-none sm:basis-auto sm:flex-1"
         />
 
-        <span className="shrink-0 font-mono text-[11px] tabular-nums text-primary">
+        <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-primary sm:ml-0 sm:text-[11px]">
           {formatPlayhead(playback.playhead ?? range.max, numberLocale)}
         </span>
 
-        <Separator orientation="vertical" className="h-4" />
+        <Separator orientation="vertical" className="hidden h-4 sm:block" />
         <Button
           variant="ghost"
           size="sm"
