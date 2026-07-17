@@ -42,7 +42,7 @@ describe("eventsTimeRange", () => {
 });
 
 describe("eventsUpTo", () => {
-  it("include solo eventi già accaduti al playhead (bordo incluso)", () => {
+  it("includes only events that occurred by the playhead", () => {
     const events = [ev("a", 1), ev("b", 2), ev("c", 3)];
     const visible = eventsUpTo(events, T0 + 2 * HOUR);
     expect(visible.map((e) => e.id)).toEqual(["a", "b"]);
@@ -50,7 +50,7 @@ describe("eventsUpTo", () => {
 });
 
 describe("eventsInTrailingWindow", () => {
-  it("finestra di coda [playhead-w, playhead]", () => {
+  it("selects the trailing [playhead-w, playhead] window", () => {
     const events = [ev("old", 0), ev("in", 4), ev("edge", 5), ev("future", 7)];
     const got = eventsInTrailingWindow(events, T0 + 5 * HOUR, 2 * HOUR);
     expect(got.map((e) => e.id)).toEqual(["in", "edge"]);
@@ -59,7 +59,7 @@ describe("eventsInTrailingWindow", () => {
 
 describe("advancePlayhead", () => {
   it("avanza di dt*speed", () => {
-    // 100 ms reali a 3600x → 360 s di dati
+    // 100 real milliseconds at 3600x advances 360 data seconds.
     const { playhead, ended } = advancePlayhead(T0, 3600, 100, T0 + HOUR);
     expect(playhead).toBe(T0 + 360_000);
     expect(ended).toBe(false);

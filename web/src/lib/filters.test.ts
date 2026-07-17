@@ -27,7 +27,7 @@ function ev(over: Partial<Event>): Event {
 const base: Filters = { eventType: "all", minMagnitude: 0, timeWindow: "all" };
 
 describe("timeWindowStart", () => {
-  it("'all' → nessun limite", () => {
+  it("'all' applies no time limit", () => {
     expect(timeWindowStart("all", NOW)).toBeNull();
   });
   it("24h e 7d → finestre rolling corrette", () => {
@@ -37,7 +37,7 @@ describe("timeWindowStart", () => {
 });
 
 describe("filterEvents", () => {
-  it("'all' senza filtri → passa tutto", () => {
+  it("'all' without filters passes every event", () => {
     const events = [ev({ id: "a" }), ev({ id: "b", event_type: "volcano", magnitude: null })];
     expect(filterEvents(events, base, NOW)).toHaveLength(2);
   });
@@ -49,7 +49,7 @@ describe("filterEvents", () => {
     ]);
   });
 
-  it("minMagnitude esclude i terremoti deboli ma NON i vulcani (mag null)", () => {
+  it("minMagnitude excludes weak earthquakes but retains volcanoes", () => {
     const events = [
       ev({ id: "weak", magnitude: 2 }),
       ev({ id: "strong", magnitude: 6 }),
@@ -59,7 +59,7 @@ describe("filterEvents", () => {
     expect(out).toEqual(["strong", "volcano"]);
   });
 
-  it("timeWindow esclude gli eventi fuori finestra", () => {
+  it("timeWindow excludes events outside the selected range", () => {
     const events = [
       ev({ id: "recent", occurred_at: "2026-06-29T06:00:00Z" }),
       ev({ id: "old", occurred_at: "2026-06-20T00:00:00Z" }),

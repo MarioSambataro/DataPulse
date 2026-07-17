@@ -7,18 +7,17 @@ import { severityColor } from "../lib/severity";
 import type { Event } from "../types";
 import { shockwaveFragment, shockwaveVertex } from "./eventShaders";
 
-// Estensione dell'onda sulla superficie in funzione della magnitudo (diametro
-// del quad in frazione del raggio del globo): M5.5 → ~0.45R, M8 → ~1.0R.
+// Surface-wave extent grows with magnitude from about 0.45R at M5.5 to 1.0R at M8.
 const MAG_MIN = 5.5;
 const MAG_MAX = 8;
 
 const PLANE_NORMAL = new THREE.Vector3(0, 0, 1);
 
 /**
- * Onde d'urto di superficie per i sismi forti (M ≥ 5.5): un solo InstancedMesh
- * di quad tangenti riavvolti sulla sfera dal vertex shader, con anelli lenti
- * che si irradiano dall'epicentro. Layer puramente decorativo (additive, nessun
- * raycast): la selezione resta ai ping sottostanti.
+ * Surface shockwaves for strong earthquakes rendered in one InstancedMesh.
+ * Tangent quads are wrapped onto the sphere by the vertex shader with slow rings.
+ * radiating from epicentres. This is a purely decorative additive layer with no
+ * raycasting, so underlying pings retain selection behavior.
  */
 export function Shockwaves({ events, radius }: { events: Event[]; radius: number }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -97,7 +96,7 @@ export function Shockwaves({ events, radius }: { events: Event[]; radius: number
       ref={meshRef}
       args={[geometry, material, count]}
       frustumCulled={false}
-      // Decorativo: i click devono passare ai ping/marker sottostanti.
+      // Decorative geometry must not intercept marker clicks.
       raycast={() => null}
     />
   );

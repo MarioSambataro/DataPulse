@@ -1,5 +1,5 @@
-// Selezione in stile GIS: un halo statico e un piccolo caret identificano la
-// feature senza aggiungere un secondo livello di visualizzazione sopra il dato.
+// GIS-style selection uses a static halo and small caret.
+// selection state without adding a second data-visualization layer.
 
 import { useMemo } from "react";
 import * as THREE from "three";
@@ -58,7 +58,7 @@ export function SelectionMarker({ radius, daytime }: { radius: number; daytime: 
         />
       </mesh>
 
-      {/* Un solo halo brand, sottile e completamente statico. */}
+      {/* One subtle, static brand halo. */}
       <mesh position={[0, 0, 0.001]} renderOrder={21}>
         <ringGeometry args={[r * 0.81, r * 0.89, 56]} />
         <meshBasicMaterial
@@ -71,7 +71,7 @@ export function SelectionMarker({ radius, daytime }: { radius: number; daytime: 
         />
       </mesh>
 
-      {/* Breve leader + caret: segnala lo stato selezionato senza sembrare un mirino. */}
+      {/* Short leader and caret indicate selection without resembling a crosshair. */}
       <mesh position={[0, r * 1.03, 0.002]} renderOrder={22}>
         <planeGeometry args={[r * 0.045, r * 0.28]} />
         <meshBasicMaterial color={accent} transparent opacity={0.88} depthWrite={false} toneMapped={false} />

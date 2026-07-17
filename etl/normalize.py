@@ -1,14 +1,8 @@
-"""Normalizzazione GeoJSON USGS -> schema unificato `events` (con Pandas).
+"""Normalize USGS GeoJSON and GVP RSS into the unified `events` schema.
 
-Trasforma un `FeatureCollection` della USGS Earthquake API in record pronti per
-l'upsert nella tabella `events`. È un modulo *puro* (solo pandas/numpy): nessuna
-rete, nessun DB, così i test girano offline sul fixture.
-
-Punti chiave:
-- `id = "usgs:" + properties.code` -> chiave deterministica per l'idempotenza.
-- `geometry.coordinates = [lon, lat, depth_km]` (ordine GeoJSON: X=lon, Y=lat).
-- `properties.time` è epoch in **millisecondi** -> convertito in UTC.
-- `geom` NON viene mai prodotta qui: la calcola il trigger DB da `lat`/`lon`.
+This pure pandas module performs no network or database access, enabling offline
+fixture tests. Deterministic IDs support idempotency, source timestamps become
+UTC datetimes, and the database trigger derives `geom` from coordinates.
 """
 
 from __future__ import annotations
@@ -22,7 +16,7 @@ from typing import Any
 
 import pandas as pd
 
-# Colonne scritte nella tabella `events` (geom esclusa: la popola il trigger DB).
+# Columns written to `events`; the database trigger supplies geometry.
 EVENT_COLUMNS = (
     "id",
     "source",
@@ -38,18 +32,15 @@ EVENT_COLUMNS = (
     "meta",
 )
 
-# Sottoinsieme di `properties` USGS conservato in `meta` (jsonb) per riferimento.
+# USGS properties retained as source-specific JSON metadata.
 _META_KEYS = ("code", "ids", "net", "magType", "status", "tsunami", "felt", "url", "type")
 
 
 def severity_from_magnitude(magnitude: float | None) -> float | None:
-    """Severity normalizzata 0..1 per il rendering: `clamp(magnitude / 10, 0, 1)`.
+    """Map magnitude linearly to rendering severity with `clamp(mag / 10, 0, 1)`.
 
-    Scelta (SEZIONE 3): mappatura **lineare** della magnitudo Richter su [0,1],
-    con 10 come tetto pratico (i terremoti registrati restano sotto). Semplice,
-    monotòna e leggibile dal frontend (dimensione/colore dell'epicentro). Le
-    magnitudo negative (micro-sismi) vengono portate a 0; `None`/NaN restano `None`
-    (non note), coerente col vincolo CHECK `severity IN [0,1] OR NULL`.
+    Unknown values remain null, while negative micro-earthquake magnitudes clamp
+    to zero. The monotonic result drives marker size and color.
     """
     if magnitude is None:
         return None
@@ -65,11 +56,10 @@ def _coord(coords: Any, index: int) -> float | None:
 
 
 def normalize_geojson(geojson: dict) -> pd.DataFrame:
-    """Da `FeatureCollection` GeoJSON a DataFrame con le colonne di `events`.
+    """Convert a USGS GeoJSON FeatureCollection into an events DataFrame.
 
-    Le feature senza `code` o senza coordinate lat/lon valide vengono scartate
-    (non si può costruire un `id` o un punto): è responsabilità del chiamante
-    loggare quante righe sono state perse confrontando le lunghezze.
+    Rows missing a deterministic code or valid coordinates are discarded. The
+    caller compares source and result lengths to report dropped rows.
     """
     features = geojson.get("features", [])
     rows: list[dict[str, Any]] = []
@@ -112,19 +102,14 @@ def normalize_geojson(geojson: dict) -> pd.DataFrame:
         )
 
     df = pd.DataFrame(rows, columns=list(EVENT_COLUMNS))
-    # USGS può ripetere lo stesso `code` nella stessa finestra (revisioni): tieni
-    # l'ultima occorrenza così l'upsert non riceve due righe con lo stesso id.
+    # USGS revisions may repeat a code within one window; keep the latest row.
     if not df.empty:
         df = df.drop_duplicates(subset="id", keep="last").reset_index(drop=True)
     return df
 
 
 def to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
-    """Converte il DataFrame in record Python puliti per l'upsert SQLAlchemy.
-
-    Normalizza i tipi numpy/pandas (NaN/NaT -> None, Timestamp -> datetime) così
-    psycopg riceve solo tipi nativi.
-    """
+    """Convert a DataFrame into native Python records suitable for SQLAlchemy."""
     records: list[dict[str, Any]] = []
     for row in df.to_dict(orient="records"):
         clean: dict[str, Any] = {}
@@ -142,28 +127,24 @@ def to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# GVP — Weekly Volcanic Activity Report (RSS) -> schema unificato `events`
+# GVP Weekly Volcanic Activity Report to unified `events`
 # ---------------------------------------------------------------------------
 #
-# Ogni <item> del feed RSS porta tutto il necessario:
-# - <guid> `...#vn_<number>`  -> numero vulcano (chiave idempotenza)
-# - <georss:point> "lat lon"  -> coordinate (ordine GeoRSS: Y=lat, X=lon!)
-# - <title> "<nome> (<paese>) - Report for <periodo> - <categoria attività>"
-# - <pubDate> RFC822          -> istante UTC del report + settimana ISO
+# Each RSS item provides the volcano number, coordinates, categorized title, and
+# publication date needed for one deterministic weekly record.
 #
-# A differenza dei terremoti i vulcani NON hanno magnitudo/profondità
-# (event_type=volcano, source=gvp, magnitude=null, depth_km=null).
+# Volcano records intentionally have no earthquake magnitude or depth.
 
 _GEORSS_NS = {"georss": "http://www.georss.org/georss"}
 
-# `<nome> (<paese>) - Report for <periodo> - <categoria>`.
+# `<name> (<country>) - Report for <period> - <category>`.
 _GVP_TITLE_RE = re.compile(
     r"^(?P<name>.*?) \((?P<country>.*?)\) - Report for (?P<period>.*?) - (?P<category>.*)$"
 )
 _VNUM_RE = re.compile(r"vn_(\d+)")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
-# Sottoinsieme `meta` (jsonb) conservato per riferimento (tooltip/ticker futuri).
+# Source fields retained as JSON metadata for details and tickers.
 _GVP_META_KEYS = (
     "volcano_number",
     "volcano_name",
@@ -177,23 +158,11 @@ _GVP_META_KEYS = (
 
 
 def severity_from_activity(category: str | None) -> float:
-    """Severity 0..1 derivata dalla **categoria di attività** del weekly report.
+    """Derive a 0–1 severity from the weekly report activity category.
 
-    Scelta (SEZIONE 4): la categoria nel titolo (es. "New Eruptive Activity",
-    "Continuing Eruptive Activity", "New Unrest") è l'unico campo *sempre presente
-    e uniforme*; l'"Alert Level" nel testo libero della descrizione è invece
-    incoerente (scale 0-5 numeriche, scale-colore con numero di colori variabile)
-    e quindi non affidabile come segnale strutturato.
-
-    Mappatura componibile (intensità + novità), così è robusta anche a varianti
-    non viste ("Ongoing Activity", ecc.):
-    - base intensità: eruzione -> 0.8, unrest -> 0.4, altro/ignoto -> 0.5
-    - bonus novità:  "New ..." -> +0.1 (l'insorgenza è più notiziabile)
-    - clamp finale in [0,1].
-
-    Esiti: New Eruptive 0.9 · Continuing Eruptive 0.8 · New Unrest 0.5 ·
-    Continuing Unrest 0.4. La severity dei vulcani non è mai null (la presenza nel
-    report implica attività rilevante).
+    Categories are more consistent than free-text alert levels. Eruptive activity
+    maps to 0.8, unrest to 0.4, and unknown categories to 0.5; new activity adds
+    0.1. Presence in the report always yields a non-null severity.
     """
     text = (category or "").lower()
     if "erupt" in text:
@@ -216,7 +185,7 @@ def _strip_html(text: str | None) -> str | None:
 
 
 def _iso_week(dt: datetime) -> str:
-    """`YYYY-Www` (settimana ISO) dell'istante UTC dato."""
+    """Return the `YYYY-Www` ISO week for a UTC timestamp."""
     year, week, _ = dt.astimezone(UTC).isocalendar()
     return f"{year}-W{week:02d}"
 
@@ -229,18 +198,17 @@ def _georss_point(item: ET.Element) -> tuple[float | None, float | None]:
     if len(parts) != 2:
         return None, None
     try:
-        lat, lon = float(parts[0]), float(parts[1])  # GeoRSS: "lat lon"
+        lat, lon = float(parts[0]), float(parts[1])  # GeoRSS order: latitude, longitude
     except ValueError:
         return None, None
     return lat, lon
 
 
 def normalize_weekly_report(xml_bytes: bytes) -> pd.DataFrame:
-    """Da feed RSS GVP (bytes XML) a DataFrame con le colonne di `events`.
+    """Convert raw GVP RSS XML into an events DataFrame.
 
-    Gli item senza numero vulcano o senza coordinate valide vengono scartati (non
-    si può costruire un `id` o un punto): il chiamante logga le righe perse
-    confrontando le lunghezze. Idempotenza per settimana: `id = gvp:<num>:<week>`.
+    Items without a volcano number, date, or valid point are discarded. Weekly
+    deterministic IDs follow `gvp:<number>:<week>`.
     """
     root = ET.fromstring(xml_bytes)
     channel = root.find("channel")
@@ -291,8 +259,8 @@ def normalize_weekly_report(xml_bytes: bytes) -> pd.DataFrame:
                 "occurred_at": occurred_at,
                 "lat": lat,
                 "lon": lon,
-                "depth_km": None,  # i vulcani non hanno profondità nello schema
-                "magnitude": None,  # né magnitudo
+                "depth_km": None,  # Volcanoes have no depth in the unified schema.
+                "magnitude": None,  # Volcanoes have no earthquake magnitude.
                 "severity": severity_from_activity(category),
                 "title": title,
                 "place": country,
@@ -301,8 +269,7 @@ def normalize_weekly_report(xml_bytes: bytes) -> pd.DataFrame:
         )
 
     df = pd.DataFrame(rows, columns=list(EVENT_COLUMNS))
-    # Stesso vulcano due volte nella stessa settimana -> tieni l'ultima occorrenza
-    # così l'upsert non riceve due righe con lo stesso id.
+    # Keep the latest duplicate for one volcano and ISO week.
     if not df.empty:
         df = df.drop_duplicates(subset="id", keep="last").reset_index(drop=True)
     return df

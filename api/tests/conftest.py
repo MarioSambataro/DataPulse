@@ -1,16 +1,8 @@
-"""Fixture dei test API: Postgres reale, isolamento per transazione.
+"""API fixtures using real PostgreSQL/PostGIS with transaction isolation.
 
-Strategia (decisa in SEZIONE 9): si testano gli endpoint contro un Postgres+PostGIS
-reale (così `ST_DWithin`, il trigger `geom` e gli enum nativi sono quelli veri).
-Per non dipendere dai dati locali né sporcarli:
-
-  - ogni test gira dentro **una transazione** aperta su una connessione dedicata;
-  - all'inizio si fa `DELETE FROM events` (visibile solo dentro la transazione),
-    così il test parte da DB vuoto e deterministico;
-  - a fine test si fa **rollback**: i dati reali locali restano intatti.
-
-La dependency `get_session` dell'app è sovrascritta per riusare la *stessa* sessione
-del test, così l'API vede le righe inserite (non committate) nella transazione.
+Each test runs in a dedicated transaction, clears events locally, and rolls back
+afterwards. The FastAPI session dependency reuses that same session, so fixture
+rows remain visible without changing persistent data.
 """
 
 from __future__ import annotations
@@ -30,21 +22,21 @@ from api.main import app
 
 @pytest.fixture(scope="session")
 def engine() -> Engine:
-    """Engine condiviso verso il DB di test; verifica che lo schema sia migrato."""
+    """Return the shared test engine and verify that migrations were applied."""
     eng = get_engine_cached()
     with eng.connect() as conn:
-        # Fallisce con un messaggio chiaro se la migrazione non è stata applicata.
+        # Fail clearly when the test database has not been migrated.
         conn.execute(text("SELECT 1 FROM events LIMIT 0"))
     return eng
 
 
 @pytest.fixture
 def db_session(engine: Engine) -> Iterator[Session]:
-    """Sessione isolata in una transazione che viene annullata a fine test."""
+    """Yield a session in a transaction rolled back after the test."""
     connection = engine.connect()
     trans = connection.begin()
     session = Session(bind=connection, expire_on_commit=False)
-    # Parti da DB vuoto (il DELETE è dentro la transazione → niente effetti reali).
+    # Start from an empty transactional view without changing persistent rows.
     session.execute(delete(Event))
     session.flush()
     try:
@@ -57,7 +49,7 @@ def db_session(engine: Engine) -> Iterator[Session]:
 
 @pytest.fixture
 def client(db_session: Session) -> Iterator[TestClient]:
-    """TestClient con la dependency `get_session` agganciata alla sessione del test."""
+    """Return a TestClient bound to the transactional test session."""
     app.dependency_overrides[get_session] = lambda: db_session
     with TestClient(app) as test_client:
         yield test_client

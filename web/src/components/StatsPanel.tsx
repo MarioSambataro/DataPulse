@@ -1,5 +1,5 @@
 // Pannello SITREP: statistiche 24h/7g da GET /stats (o derivate in mock/offline).
-// Card shadcn con griglia KPI 2×2. Gestisce loading/errore.
+// Shadcn card with a 2×2 KPI grid and loading/error states.
 
 import { Activity, Gauge, Layers, Mountain } from "lucide-react";
 import type { LucideIcon } from "lucide-react";

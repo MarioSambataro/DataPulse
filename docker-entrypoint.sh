@@ -1,11 +1,9 @@
 #!/bin/sh
-# Entrypoint dell'immagine API DataPulse (SEZIONE 10).
+# DataPulse API image entrypoint.
 #
-# Applica le migrazioni del DB (idempotente) e poi avvia uvicorn.
-# Le migrazioni girano qui — e non in un "release/pre-deploy command" — perché su
-# Render quei comandi sono disponibili solo sui piani a pagamento. `alembic upgrade
-# head` è idempotente (no-op se il DB è già aggiornato), quindi rieseguirlo a ogni
-# avvio/restart è sicuro e self-healing. Disattivabile con RUN_MIGRATIONS=0.
+# Apply idempotent database migrations before starting Uvicorn. Render reserves
+# pre-deploy commands for paid plans, so startup migrations provide the free-tier
+# equivalent. Set RUN_MIGRATIONS=0 to disable them.
 set -e
 
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
@@ -15,5 +13,5 @@ else
   echo "[entrypoint] RUN_MIGRATIONS=${RUN_MIGRATIONS} → salto le migrazioni."
 fi
 
-echo "[entrypoint] avvio API su :${PORT:-8000}"
+echo "[entrypoint] starting API on :${PORT:-8000}"
 exec uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}"

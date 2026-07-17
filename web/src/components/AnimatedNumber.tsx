@@ -5,9 +5,8 @@ const DURATION_MS = 900;
 const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
 
 /**
- * Numero con count-up: al mount parte da 0 e "scatta" fino al valore; ai cambi
- * successivi anima dal valore precedente. rAF cancellato allo smontaggio.
- * Usare dentro contenitori `tabular-nums` così le cifre non ballano.
+ * Count up from zero on mount and animate subsequent changes from the previous value.
+ * Use inside a tabular-nums container to prevent digit-width shifts.
  */
 export function AnimatedNumber({ value, decimals = 0 }: { value: number; decimals?: number }) {
   const [display, setDisplay] = useState(0);
@@ -31,7 +30,7 @@ export function AnimatedNumber({ value, decimals = 0 }: { value: number; decimal
     raf = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(raf);
-      fromRef.current = value; // un'animazione interrotta riparte dal target
+      fromRef.current = value; // An interrupted animation resumes from its target.
     };
   }, [value]);
 

@@ -1,11 +1,5 @@
-// Deep-linking dell'evento selezionato: `?event=<id>` nell'URL.
-//
-// - All'avvio: se l'URL contiene `?event=`, appena gli eventi sono in store si
-//   seleziona quell'id → il CameraRig vola sull'epicentro da solo. Il "pending"
-//   resta armato finché l'id non compare (gli eventi arrivano async).
-// - A ogni selezione: l'URL viene riscritto con replaceState (niente history
-//   spam), preservando gli altri parametri (es. ?mock=1). Ogni evento sul globo
-//   diventa così un link condivisibile.
+// Synchronize selected events with `?event=<id>` while preserving other query
+// parameters. Pending IDs resolve when asynchronous event data arrives.
 
 import { useEffect, useRef } from "react";
 
@@ -18,12 +12,12 @@ export function useDeepLink(): void {
   const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
 
-  // Id richiesto dall'URL al primo mount, consumato appena esiste in store.
+  // Initial URL selection, consumed when the event appears in the store.
   const pendingRef = useRef<string | null>(
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get(PARAM),
   );
 
-  // Selezione iniziale da URL (quando gli eventi arrivano).
+  // Resolve the initial URL selection when events arrive.
   useEffect(() => {
     const pending = pendingRef.current;
     if (!pending || events.length === 0) return;
@@ -33,9 +27,9 @@ export function useDeepLink(): void {
     }
   }, [events, select]);
 
-  // Selezione → URL (replaceState per non inquinare la history).
+  // Mirror selection to the URL without adding history entries.
   useEffect(() => {
-    if (pendingRef.current) return; // non riscrivere l'URL prima di consumare il pending
+    if (pendingRef.current) return; // Wait until pending URL state is consumed.
     const params = new URLSearchParams(window.location.search);
     if (selectedId) params.set(PARAM, selectedId);
     else params.delete(PARAM);

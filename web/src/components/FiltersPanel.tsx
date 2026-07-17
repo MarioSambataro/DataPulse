@@ -1,6 +1,6 @@
-// Pannello filtri: tipo evento, magnitudo minima (slider), finestra temporale.
-// Scrive nello store (setFilters) → il layer 3D, il ticker e i contatori si
-// aggiornano da soli (filtro client-side condiviso, lib/filters.filterEvents).
+// Event type, minimum magnitude, and rolling time-window filters.
+// Writes to shared store state consumed by the 3D layer, ticker, and counters.
+// Shared client-side filtering updates the globe, ticker, and counters.
 
 import { SlidersHorizontal } from "lucide-react";
 import { useMemo } from "react";

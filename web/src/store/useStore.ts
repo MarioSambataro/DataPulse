@@ -2,36 +2,35 @@ import { create } from "zustand";
 
 import type { Event, Filters } from "../types";
 
-/** Modalità di visualizzazione della superficie terrestre. */
+/** Earth surface display mode. */
 export type GlobeView = "night" | "day";
 
-/** Stato del time-travel: playhead in epoch ms (null = live, "adesso"). */
+/** Replay state; a null playhead means live current time. */
 export interface PlaybackState {
   playhead: number | null;
   playing: boolean;
-  /** Moltiplicatore tempo-dati/tempo-reale (es. 3600 → 1h di dati al secondo). */
+  /** Data-time to real-time multiplier. */
   speed: number;
 }
 
-/** Modalità AI: il globo mostra il risultato di una query in linguaggio naturale. */
+/** AI mode showing the result of one natural-language query. */
 export interface AiMode {
   question: string;
   answer: string;
   total: number;
 }
 
-// Store globale leggero (Zustand). SEZIONE 6-8: stato UI del globo + eventi/filtri.
-// SEZIONE 12: playback time-travel, feed live SSE, overlay placche, modalità AI.
+// Lightweight Zustand store for globe state, events, filters, replay, and AI mode.
 interface AppState {
   events: Event[];
   filters: Filters;
-  autoRotate: boolean; // intento utente: auto-rotazione lenta della camera
-  interacting: boolean; // pausa transitoria dell'auto-rotazione (hover/drag/click)
-  globeView: GlobeView; // notturno (luci città) vs diurno (Terra reale)
+  autoRotate: boolean; // User preference for slow camera rotation.
+  interacting: boolean; // Temporary pause during hover, drag, or click.
+  globeView: GlobeView; // Night city lights or daylight Earth.
   booting: boolean;
-  selectedId: string | null; // evento selezionato (pannello dettaglio + fly-to)
-  live: boolean; // feed SSE connesso (badge LIVE)
-  showPlates: boolean; // overlay confini di placca tettonica
+  selectedId: string | null; // Selected event for details and cinematic fly-to.
+  live: boolean; // SSE connection state shown by the live badge.
+  showPlates: boolean; // Tectonic plate boundary overlay.
   playback: PlaybackState;
   aiMode: AiMode | null;
 
@@ -49,11 +48,11 @@ interface AppState {
   setPlayback: (patch: Partial<PlaybackState>) => void;
   stopPlayback: () => void;
   setAiMode: (mode: AiMode | null) => void;
-  pauseRotation: () => void; // ferma subito l'auto-rotazione (interazione in corso)
-  resumeRotationAfter: (ms: number) => void; // riprende da sola dopo `ms` di inattività
+  pauseRotation: () => void; // Pause rotation during interaction.
+  resumeRotationAfter: (ms: number) => void; // Resume after an inactivity delay.
 }
 
-// Timer di ripresa a livello modulo (solo client): evita di sporcare lo store.
+// Module-level client timer keeps transient scheduling outside persistent state.
 let resumeTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useStore = create<AppState>((set) => ({
@@ -70,8 +69,7 @@ export const useStore = create<AppState>((set) => ({
   aiMode: null,
 
   setEvents: (events) => set({ events }),
-  // Merge del feed live: i nuovi eventi in testa, dedup per id, cap alla stessa
-  // dimensione del fetch iniziale (l'ordine resta occurred_at DESC lato render).
+  // Prepend live rows, deduplicate IDs, and retain the initial rendering cap.
   mergeEvents: (incoming, cap = 1000) =>
     set((state) => {
       if (incoming.length === 0) return state;

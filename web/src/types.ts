@@ -1,6 +1,4 @@
-// Contratto dati del frontend, allineato ai modelli Pydantic dell'API
-// (api/schemas.py). I dati reali arrivano in SEZIONE 7; qui i tipi servono
-// allo store e alla futura chiamata a GET /events (envelope EventPage) e /stats.
+// Frontend data contract aligned with the Pydantic models in api/schemas.py.
 
 export type Source = "usgs" | "gvp";
 export type EventType = "earthquake" | "volcano";
@@ -15,14 +13,14 @@ export interface Event {
   lon: number;
   depth_km: number | null;
   magnitude: number | null;
-  severity: number | null; // 0..1, per size/colore del rendering
+  severity: number | null; // Normalized 0..1 rendering size/color input.
   title: string;
   place: string | null;
   meta: Record<string, unknown>;
   ingested_at: string | null;
 }
 
-/** Envelope paginato di GET /events. */
+/** Paginated GET /events envelope. */
 export interface EventPage {
   items: Event[];
   total: number;
@@ -30,7 +28,7 @@ export interface EventPage {
   offset: number;
 }
 
-/** Aggregati di GET /stats (finestre rolling 24h/7g). */
+/** Rolling 24-hour and 7-day GET /stats aggregates. */
 export interface Stats {
   generated_at: string;
   events_24h: number;
@@ -40,7 +38,7 @@ export interface Stats {
   active_volcanoes_7d: number;
 }
 
-/** Risposta di GET /status (osservabilità: DB + freschezza dati ETL). */
+/** GET /status response covering database health and ETL freshness. */
 export interface ApiStatus {
   status: "ok" | "degraded";
   version: string;
@@ -51,7 +49,7 @@ export interface ApiStatus {
   events_total: number | null;
 }
 
-/** Filtri (sottoinsieme dei parametri di GET /events) prodotti da POST /ai/query. */
+/** GET /events filter subset produced by POST /ai/query. */
 export interface AiFilters {
   event_type: EventType | null;
   min_magnitude: number | null;
@@ -62,14 +60,14 @@ export interface AiFilters {
   radius_km: number | null;
 }
 
-/** Risposta di POST /ai/query. */
+/** POST /ai/query response. */
 export interface AiQueryResult {
   answer: string;
   filters: AiFilters;
   model: string;
 }
 
-/** Risposta di GET /ai/briefing. */
+/** GET /ai/briefing response. */
 export interface AiBriefing {
   briefing: string;
   generated_at: string;
@@ -77,10 +75,10 @@ export interface AiBriefing {
   cached: boolean;
 }
 
-/** Finestra temporale del filtro (su occurred_at, rolling rispetto a "ora"). */
+/** Rolling occurred_at filter window relative to the current time. */
 export type TimeWindow = "24h" | "7d" | "all";
 
-/** Filtri lato UI, applicati CLIENT-SIDE al globo/ticker/contatori (SEZIONE 8). */
+/** Client-side UI filters applied to the globe, ticker, and counters. */
 export interface Filters {
   eventType: EventType | "all";
   minMagnitude: number;

@@ -1,10 +1,10 @@
-# DataPulse API — immagine di produzione (SEZIONE 10).
+# DataPulse API production image.
 #
-# Build context = root del repo (servono pyproject.toml + i package etl/api/db).
+# Build context: repository root, containing pyproject.toml and application packages.
 #   docker build -t datapulse-api .
 #
-# psycopg[binary] include libpq: niente build-essential/libpq-dev → immagine snella.
-# Le migrazioni Alembic girano all'avvio (docker-entrypoint.sh), non in fase di build.
+# psycopg[binary] bundles libpq, avoiding build toolchains in the runtime image.
+# Alembic migrations run at container startup, not during image construction.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -15,25 +15,25 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Solo i metadati + i package necessari all'API e alle migrazioni (no etl/dev/web).
-# `etl` serve perché api.db riusa etl.db/etl.config (single source of truth dell'URL).
+# Copy only metadata and packages needed by the API and migrations.
+# `etl` is required because api.db reuses the shared database configuration.
 COPY pyproject.toml ./
 COPY etl ./etl
 COPY api ./api
 COPY db ./db
 COPY docker-entrypoint.sh ./
 
-# Installa SOLO i layer API + DB (uvicorn, fastapi, sqlalchemy, alembic, psycopg, ...).
+# Install only the API and database dependency groups.
 RUN pip install ".[api,db]" \
     && chmod +x docker-entrypoint.sh
 
 EXPOSE 8000
 
-# Healthcheck per docker run / compose (Render usa invece healthCheckPath: /health).
-# Legge $PORT a runtime, così resta valido anche quando il provider lo cambia.
+# Health check for Docker and Compose; Render uses healthCheckPath instead.
+# Resolve $PORT at runtime so provider overrides remain valid.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import os,sys,urllib.request; \
 sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT','8000')).status==200 else 1)"
 
-# L'entrypoint applica le migrazioni (RUN_MIGRATIONS=1) e poi avvia uvicorn su $PORT.
+# The entrypoint optionally applies migrations, then starts Uvicorn on $PORT.
 ENTRYPOINT ["./docker-entrypoint.sh"]

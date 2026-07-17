@@ -8,19 +8,16 @@ import { Epicenters } from "./Epicenters";
 import { Shockwaves } from "./Shockwaves";
 import { Volcanoes } from "./Volcanoes";
 
-// Sopra questa magnitudo il sisma proietta anche un'onda d'urto di superficie.
+// Earthquakes above this magnitude also project a surface shockwave.
 const SHOCKWAVE_MIN_MAG = 5.5;
 
 /**
- * Layer dati sul globo: legge gli eventi e i filtri dallo store, applica il filtro
- * client-side condiviso (`filterEvents`) e separa per tipo per i due renderer
- * specializzati (epicentri istanziati + vulcani). I controlli HUD scrivono i
- * `filters` nello store (SEZIONE 8) e il globo si aggiorna da solo.
+ * Globe data layer that reads events and filters from the store.
+ * Shared client filtering separates event types for the two specialized renderers.
+ * Specialized children render instanced epicentres and volcanoes.
  *
- * Time-travel (SEZIONE 12): con un playhead attivo il "presente" del globo è il
- * playhead — si vedono solo gli eventi già accaduti a quell'istante e le onde
- * d'urto si accendono per i sismi forti appena "ri-accaduti" (finestra di coda),
- * così lo sciame si rianima mentre la timeline scorre.
+ * Replay treats the playhead as the globe's present and reactivates recent strong
+ * earthquake shockwaves as the timeline advances.
  */
 export function EventsLayer({ radius }: { radius: number }) {
   const events = useStore((s) => s.events);
@@ -41,7 +38,7 @@ export function EventsLayer({ radius }: { radius: number }) {
       } else if (ev.event_type === "volcano") vo.push(ev);
     }
     if (playhead != null) {
-      // In playback l'onda si attiva quando il playhead attraversa l'evento.
+      // During replay, the wave activates as the playhead crosses the event.
       st = eventsInTrailingWindow(eq, playhead, REPLAY_SHOCKWAVE_WINDOW_MS).filter(
         (ev) => (ev.magnitude ?? 0) >= SHOCKWAVE_MIN_MAG,
       );
@@ -53,7 +50,7 @@ export function EventsLayer({ radius }: { radius: number }) {
     <group>
       <Epicenters events={earthquakes} radius={radius} onSelect={select} />
       <Volcanoes events={volcanoes} radius={radius} onSelect={select} />
-      {/* Onde d'urto di superficie sui sismi forti (decorative, sopra i ping). */}
+      {/* Decorative strong-earthquake surface shockwaves above the pings. */}
       <Shockwaves events={strong} radius={radius} />
     </group>
   );

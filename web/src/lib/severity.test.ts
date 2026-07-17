@@ -3,20 +3,20 @@ import { describe, expect, it } from "vitest";
 import { magnitudeSize, severityColor } from "./severity";
 
 describe("severityColor", () => {
-  it("severità bassa → verde dominante", () => {
+  it("maps low severity to dominant green", () => {
     const [r, g, b] = severityColor(0);
     expect(g).toBeGreaterThan(r);
     expect(g).toBeGreaterThan(b);
   });
 
-  it("severità media (0.5) → ambra (rosso alto, verde medio, blu ~0)", () => {
+  it("maps medium severity to amber", () => {
     const [r, g, b] = severityColor(0.5);
     expect(r).toBeCloseTo(1);
     expect(g).toBeCloseTo(0.69, 1);
     expect(b).toBeCloseTo(0);
   });
 
-  it("severità alta → rosso dominante", () => {
+  it("maps high severity to dominant red", () => {
     const [r, g, b] = severityColor(1);
     expect(r).toBeGreaterThan(g);
     expect(r).toBeGreaterThan(b);
@@ -31,7 +31,7 @@ describe("severityColor", () => {
     expect(severityColor(5)).toEqual(severityColor(1));
   });
 
-  it("ogni componente resta in [0..1]", () => {
+  it("keeps every component within [0..1]", () => {
     for (const s of [0, 0.25, 0.5, 0.75, 1]) {
       for (const c of severityColor(s)) {
         expect(c).toBeGreaterThanOrEqual(0);
@@ -42,16 +42,16 @@ describe("severityColor", () => {
 });
 
 describe("magnitudeSize", () => {
-  it("è monotòna crescente nella magnitudo", () => {
+  it("increases monotonically with magnitude", () => {
     expect(magnitudeSize(2)).toBeLessThan(magnitudeSize(5));
     expect(magnitudeSize(5)).toBeLessThan(magnitudeSize(7.5));
   });
 
-  it("magnitudo null → dimensione minima", () => {
+  it("maps a null magnitude to minimum size", () => {
     expect(magnitudeSize(null)).toBeCloseTo(0.012);
   });
 
-  it("clampa la magnitudo a 8", () => {
+  it("clamps magnitude at eight", () => {
     expect(magnitudeSize(20)).toBeCloseTo(magnitudeSize(8));
   });
 });

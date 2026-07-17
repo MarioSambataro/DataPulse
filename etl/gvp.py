@@ -1,12 +1,7 @@
-"""Client del Weekly Volcanic Activity Report dello Smithsonian GVP (feed RSS).
+"""Smithsonian GVP Weekly Volcanic Activity Report RSS client.
 
-Scarica il report settimanale come **bytes** grezzi (XML in ISO-8859-1): la
-trasformazione vive in `etl.normalize`. Gestisce timeout e retry con backoff
-esponenziale su errori di rete e risposte 5xx/429 (transitorie), stesso stile di
-`etl.usgs`. I 4xx "veri" (es. 404) falliscono subito.
-
-Si ritornano i bytes (non `resp.text`) così il parser XML può rispettare la
-dichiarazione di encoding del documento ed evitare mojibake sugli accenti.
+Returns raw XML bytes so the parser can honor the declared ISO-8859-1 encoding.
+Transient failures use exponential backoff; permanent client errors fail fast.
 """
 
 from __future__ import annotations
@@ -20,7 +15,7 @@ from etl.logging_setup import get_logger
 
 logger = get_logger("etl.gvp")
 
-# Status che vale la pena ritentare (rate limit + errori server transitori).
+# Retry rate limiting and transient server failures.
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
@@ -32,11 +27,7 @@ def fetch_weekly_report(
     backoff: float = 2.0,
     client: httpx.Client | None = None,
 ) -> bytes:
-    """Scarica il feed RSS del Weekly Volcanic Activity Report.
-
-    Ritorna il corpo XML grezzo (bytes). Solleva l'ultima eccezione httpx se
-    tutti i tentativi falliscono.
-    """
+    """Fetch and return the raw Weekly Volcanic Activity Report XML bytes."""
     owns_client = client is None
     client = client or httpx.Client(timeout=timeout)
     try:
@@ -53,7 +44,7 @@ def fetch_weekly_report(
             except (httpx.HTTPError, httpx.TransportError) as exc:
                 last_exc = exc
                 status = getattr(getattr(exc, "response", None), "status_code", None)
-                # Non ritentare i 4xx "veri" (es. 404): inutile.
+                # Fail immediately for permanent client errors.
                 if status is not None and status not in _RETRYABLE_STATUS:
                     logger.error("gvp_fetch_failed", extra={"status": status})
                     raise
@@ -64,7 +55,7 @@ def fetch_weekly_report(
                         extra={"attempt": attempt, "status": status, "sleep": sleep_for},
                     )
                     time.sleep(sleep_for)
-        assert last_exc is not None  # i retry sono >= 1
+        assert last_exc is not None  # retries is always at least one
         logger.error("gvp_fetch_exhausted", extra={"retries": retries})
         raise last_exc
     finally:

@@ -15,7 +15,7 @@ dist-ssr/
 test-results/
 playwright-report/
 
-# Visual QA intermedi (si versionano soltanto le due immagini portfolio)
+# Intermediate visual QA; only the two portfolio images are versioned.
 web/datapulse-*.png
 !web/datapulse-etna-live.png
 !web/datapulse-marker-night.png

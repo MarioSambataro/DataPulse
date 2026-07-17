@@ -1,10 +1,8 @@
-"""Modello SQLAlchemy dello schema eventi unificato (terremoti + vulcani).
+"""SQLAlchemy model for the unified earthquake and volcano schema.
 
-La tabella `events` rappresenta sia i terremoti (USGS) sia i vulcani (GVP) in un
-solo schema. La colonna geografica `geom` (PostGIS `geography(Point,4326)`) è
-**derivata** da `lat`/`lon` tramite un trigger di DB (vedi la prima migrazione e
-`docs/SCHEMA_EVENTI.md`): chi scrive (ETL upsert) imposta solo `lat`/`lon`, il DB
-mantiene `geom` coerente.
+The PostGIS `geom` column is derived from `lat` and `lon` by a database trigger.
+Writers provide only canonical coordinates; the database keeps geometry aligned.
+See `docs/EVENT_SCHEMA.md` for the complete mapping.
 """
 
 from __future__ import annotations
@@ -16,11 +14,11 @@ from sqlalchemy import CheckConstraint, DateTime, Enum, Float, Index, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-# Valori ammessi (allineati con il modello Pydantic in `api/schemas.py`).
+# Allowed values aligned with the public Pydantic model.
 SOURCES = ("usgs", "gvp")
 EVENT_TYPES = ("earthquake", "volcano")
 
-# Enum nativi Postgres (nome esplicito per riferirli nelle migrazioni).
+# Named native PostgreSQL enums referenced by migrations.
 source_enum = Enum(*SOURCES, name="source_enum")
 event_type_enum = Enum(*EVENT_TYPES, name="event_type_enum")
 
@@ -30,11 +28,11 @@ class Base(DeclarativeBase):
 
 
 class Event(Base):
-    """Evento geo-tettonico unificato."""
+    """Unified geotectonic event."""
 
     __tablename__ = "events"
 
-    # Chiave deterministica per l'idempotenza dell'ETL (es. "usgs:<code>").
+    # Deterministic key used for idempotent ETL upserts.
     id: Mapped[str] = mapped_column(Text, primary_key=True)
 
     source: Mapped[str] = mapped_column(source_enum, nullable=False)
@@ -42,12 +40,11 @@ class Event(Base):
 
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    # Coordinate "grezze" — comode per il frontend, fonte di verità per `geom`.
+    # Canonical coordinates exposed to the frontend and used to derive `geom`.
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lon: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # Punto geografico PostGIS, derivato da lat/lon via trigger. Indice GiST creato
-    # esplicitamente nella migrazione (spatial_index=False qui per non duplicarlo).
+    # PostGIS point derived by trigger. The migration creates its GiST index.
     geom: Mapped[object] = mapped_column(
         Geography(geometry_type="POINT", srid=4326, spatial_index=False),
         nullable=False,
@@ -55,13 +52,13 @@ class Event(Base):
 
     depth_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     magnitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # Metrica normalizzata 0–1 per il rendering (pulse/colore).
+    # Normalized 0–1 metric used for rendering size and color.
     severity: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     title: Mapped[str] = mapped_column(Text, nullable=False)
     place: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Campi specifici della sorgente non normalizzati.
+    # Non-normalized source-specific fields.
     meta: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
 
     ingested_at: Mapped[datetime] = mapped_column(

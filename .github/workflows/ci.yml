@@ -14,7 +14,7 @@ jobs:
   backend:
     name: Backend (ruff + pytest)
     runs-on: ubuntu-latest
-    # Postgres+PostGIS reale: i test API esercitano davvero ST_DWithin/trigger geom.
+    # Real PostgreSQL/PostGIS exercises ST_DWithin and the geometry trigger.
     services:
       postgres:
         image: postgis/postgis:16-3.4
@@ -83,7 +83,7 @@ jobs:
         run: npm run build
       - name: E2E (playwright)
         run: npm run e2e
-      - name: Upload report (screenshot del globo incluso)
+      - name: Upload report with globe screenshot
         uses: actions/upload-artifact@v4
         if: always()
         with:

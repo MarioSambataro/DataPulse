@@ -18,14 +18,14 @@ describe("latLonToVec3", () => {
     expect(length(latLonToVec3(-33.4, 70.2, 2.5))).toBeCloseTo(2.5);
   });
 
-  it("mappa il polo nord sull'asse +Y", () => {
+  it("maps the north pole to the positive Y axis", () => {
     const [x, y, z] = latLonToVec3(90, 0, 1);
     expect(x).toBeCloseTo(0);
     expect(y).toBeCloseTo(1);
     expect(z).toBeCloseTo(0);
   });
 
-  it("mappa il polo sud sull'asse -Y", () => {
+  it("maps the south pole to the negative Y axis", () => {
     const [, y] = latLonToVec3(-90, 45, 1);
     expect(y).toBeCloseTo(-1);
   });

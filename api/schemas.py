@@ -1,9 +1,7 @@
-"""Modelli Pydantic v2 condivisi dell'API DataPulse.
+"""Shared Pydantic v2 models for the DataPulse API.
 
-`Event` è il contratto pubblico di un evento geo-tettonico. Espone `lat`/`lon`
-(non la geometria PostGIS interna `geom`): il frontend lavora con le coordinate
-grezze. `model_config.from_attributes=True` permette di costruirlo direttamente da
-un'istanza ORM (`db.models.Event`), che ha gli stessi attributi.
+`Event` is the public geotectonic-event contract. It exposes coordinates rather
+than internal PostGIS geometry and can be built directly from the ORM model.
 """
 
 from __future__ import annotations
@@ -18,82 +16,68 @@ EventType = Literal["earthquake", "volcano"]
 
 
 class Event(BaseModel):
-    """Evento unificato (terremoto o vulcano) esposto dall'API."""
+    """Unified earthquake or volcano event exposed by the API."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: str = Field(description="Chiave deterministica, es. 'usgs:<code>'.")
+    id: str = Field(description="Deterministic key, for example 'usgs:<code>'.")
     source: Source
     event_type: EventType
-    occurred_at: datetime = Field(description="Istante UTC dell'evento.")
+    occurred_at: datetime = Field(description="Event time in UTC.")
 
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
 
-    depth_km: float | None = Field(default=None, description="Profondità (solo terremoti).")
-    magnitude: float | None = Field(default=None, description="Magnitudo (solo terremoti).")
+    depth_km: float | None = Field(default=None, description="Depth in kilometres for earthquakes.")
+    magnitude: float | None = Field(default=None, description="Magnitude for earthquakes.")
     severity: float | None = Field(
-        default=None, ge=0, le=1, description="Metrica normalizzata 0–1 per il rendering."
+        default=None, ge=0, le=1, description="Normalized 0–1 rendering metric."
     )
 
     title: str
     place: str | None = None
 
-    meta: dict = Field(default_factory=dict, description="Campi specifici della sorgente.")
+    meta: dict = Field(default_factory=dict, description="Source-specific fields.")
     ingested_at: datetime | None = None
 
 
 class EventPage(BaseModel):
-    """Risposta paginata di `GET /events` (envelope con metadati di paginazione).
-
-    Scelta SEZIONE 9: envelope invece di lista nuda, così il frontend conosce il
-    `total` (numero di eventi che soddisfano i filtri, ignorando limit/offset) per
-    rendere paginazione/contatori senza una seconda chiamata.
-    """
+    """Paginated `GET /events` response with pagination metadata."""
 
     items: list[Event]
-    total: int = Field(ge=0, description="Eventi totali che soddisfano i filtri (no limit/offset).")
-    limit: int = Field(ge=1, description="Dimensione pagina richiesta.")
-    offset: int = Field(ge=0, description="Offset richiesto.")
+    total: int = Field(ge=0, description="Total matching events before limit and offset.")
+    limit: int = Field(ge=1, description="Requested page size.")
+    offset: int = Field(ge=0, description="Requested offset.")
 
 
 class Status(BaseModel):
-    """Risposta di `GET /status` (osservabilità: DB + freschezza dati).
+    """Database readiness, ingestion freshness, and process status."""
 
-    `last_event_age_s` è l'età dell'ultimo evento INGERITO (non accaduto): è la
-    metrica onesta di "quanto sono freschi i dati", perché misura l'ultima
-    scrittura dei cron ETL. `status` è "degraded" se il DB non risponde.
-    """
-
-    status: str = Field(description='"ok" oppure "degraded".')
+    status: str = Field(description='Either "ok" or "degraded".')
     version: str
-    uptime_s: float = Field(ge=0, description="Secondi dall'avvio del processo API.")
-    db: str = Field(description='"ok" oppure "error".')
+    uptime_s: float = Field(ge=0, description="Seconds since the API process started.")
+    db: str = Field(description='Either "ok" or "error".')
     last_ingested_at: datetime | None = Field(
-        default=None, description="Timestamp dell'ultima ingestione ETL."
+        default=None, description="Timestamp of the latest ETL ingestion."
     )
     last_event_age_s: float | None = Field(
-        default=None, ge=0, description="Età in secondi dell'ultimo evento ingerito."
+        default=None, ge=0, description="Age in seconds of the latest ingested event."
     )
-    events_total: int | None = Field(default=None, ge=0, description="Righe totali in events.")
+    events_total: int | None = Field(
+        default=None, ge=0, description="Total rows in the events table."
+    )
 
 
 class Stats(BaseModel):
-    """Aggregati di `GET /stats`.
+    """Rolling event aggregates returned by `GET /stats`."""
 
-    Finestre **rolling** relative a `generated_at` (istante UTC della risposta),
-    calcolate su `occurred_at`:
-      - 24h = `[generated_at - 24h, generated_at]`
-      - 7g  = `[generated_at - 7 giorni, generated_at]`
-    """
-
-    generated_at: datetime = Field(description="Istante UTC di calcolo (origine delle finestre).")
-    events_24h: int = Field(ge=0, description="Eventi (qualsiasi tipo) nelle ultime 24h.")
-    events_7d: int = Field(ge=0, description="Eventi (qualsiasi tipo) negli ultimi 7 giorni.")
-    earthquakes_24h: int = Field(ge=0, description="Terremoti nelle ultime 24h.")
+    generated_at: datetime = Field(description="UTC calculation time used as the window origin.")
+    events_24h: int = Field(ge=0, description="Events of any type within the last 24 hours.")
+    events_7d: int = Field(ge=0, description="Events of any type within the last seven days.")
+    earthquakes_24h: int = Field(ge=0, description="Earthquakes within the last 24 hours.")
     max_magnitude_24h: float | None = Field(
-        default=None, description="Magnitudo massima tra i terremoti delle ultime 24h (null se 0)."
+        default=None, description="Maximum earthquake magnitude in the last 24 hours."
     )
     active_volcanoes_7d: int = Field(
-        ge=0, description="Vulcani distinti (per numero GVP) con attività negli ultimi 7 giorni."
+        ge=0, description="Distinct GVP volcanoes with activity in the last seven days."
     )

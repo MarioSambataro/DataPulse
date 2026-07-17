@@ -1,14 +1,13 @@
-# Render Blueprint — DataPulse API.
-# Il database persistente vive su Neon Free (PostgreSQL + PostGIS): la relativa
-# connection string viene inserita nel Dashboard Render come secret DATABASE_URL.
-# Il Blueprint crea soltanto il web service Docker dell'API.
+# Render Blueprint for the DataPulse API.
+# Persistent PostgreSQL/PostGIS data lives on Neon Free. Add its connection string
+# to the Render dashboard as the DATABASE_URL secret. This Blueprint creates only
+# the Docker web service.
 #
-# Le migrazioni girano all'avvio del container (docker-entrypoint.sh, RUN_MIGRATIONS=1):
-# i pre-deploy/release command di Render sono solo a pagamento, l'entrypoint è
-# l'equivalente free-tier (alembic upgrade head è idempotente).
+# Migrations run at container startup because Render pre-deploy commands require a
+# paid plan. `alembic upgrade head` is idempotent.
 #
-# Uso: Render Dashboard → New → Blueprint → punta a questo repo. Durante la
-# creazione inserire DATABASE_URL (Neon) e CORS_ALLOW_ORIGINS (origin Vercel).
+# Usage: Render Dashboard → New → Blueprint. During creation, configure
+# DATABASE_URL for Neon and CORS_ALLOW_ORIGINS for the Vercel origin.
 
 services:
   - type: web
@@ -21,13 +20,13 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      # Connection string Neon diretta, con sslmode=require. Il valore è segreto.
+      # Direct Neon connection string with sslmode=require; keep this value secret.
       - key: DATABASE_URL
         sync: false
-      # Origin Vercel di produzione: da valorizzare a mano nel dashboard (non in repo).
-      # Es.: https://datapulse.vercel.app
+      # Production Vercel origin, configured manually in the dashboard.
+      # Example: https://datapulse.vercel.app
       - key: CORS_ALLOW_ORIGINS
         sync: false
-      # Applica le migrazioni all'avvio (vedi docker-entrypoint.sh).
+      # Apply migrations at startup; see docker-entrypoint.sh.
       - key: RUN_MIGRATIONS
         value: "1"

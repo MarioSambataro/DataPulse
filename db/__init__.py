@@ -1,3 +1,3 @@
-"""DataPulse DB — schema eventi unificato + migrazioni Alembic (SEZIONE 2)."""
+"""DataPulse unified event schema and Alembic migrations."""
 
 __version__ = "0.1.0"

@@ -1,7 +1,7 @@
-// Barra time-travel: slider sull'intervallo degli eventi caricati + play/pause +
-// velocità. Con playhead attivo il globo mostra solo gli eventi già accaduti a
-// quell'istante (EventsLayer) e le onde d'urto si riaccendono al passaggio.
-// Il ticking vive qui (setInterval ~10fps): smontata la barra, il playback si ferma.
+// Replay slider, play/pause, and speed controls; unmounting stops the local ticker.
+
+
+
 
 import { FastForward, Pause, Play, X } from "lucide-react";
 import { useEffect, useMemo } from "react";
@@ -31,7 +31,7 @@ export function TimeBar() {
   const range = useMemo(() => eventsTimeRange(events), [events]);
   const active = playback.playhead != null;
 
-  // Ticking del playback: avanza il playhead a velocità `speed` finché playing.
+  // Advance the playhead at the selected speed while playing.
   useEffect(() => {
     if (!playback.playing || playback.playhead == null || !range) return;
     const id = window.setInterval(() => {

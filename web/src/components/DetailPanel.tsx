@@ -1,7 +1,7 @@
-// Pannello dettaglio dell'evento selezionato (DOM, sopra il Canvas). Layout
-// "command center": header con tipo evento + severità, magnitudo come stat
-// principale, righe chiave-valore in mono. Si apre al click su un evento del
-// globo (selectedId nello store) e si chiude con ✕ o tasto Esc.
+// DOM detail panel for the selected globe event, closed by its button or Escape.
+
+
+
 
 import { Activity, Mountain, X } from "lucide-react";
 import { useEffect } from "react";
@@ -62,7 +62,7 @@ export function DetailPanel() {
       className="glass pointer-events-auto absolute bottom-24 left-3 z-30 w-[300px] max-w-[82vw] overflow-hidden p-0 sm:left-4"
       aria-live="polite"
     >
-      {/* Header: tipo evento + severità, chiusura. */}
+      {/* Event type, severity, and close control. */}
       <div className="flex items-center justify-between border-b border-border/60 px-3.5 py-2">
         <span className="flex items-center gap-2">
           <span
@@ -103,7 +103,7 @@ export function DetailPanel() {
           </div>
         )}
 
-        {/* Barra severità: posizione sul gradiente verde → ambra → rosso. */}
+        {/* Severity position on the green-to-amber-to-red gradient. */}
         <div className="mt-3">
           <div className="h-1 rounded-full bg-muted">
             <div

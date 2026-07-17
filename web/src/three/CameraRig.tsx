@@ -6,14 +6,12 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { latLonToVec3 } from "../lib/geo";
 import { useStore } from "../store/useStore";
 
-/** Posizione operativa della camera (fine intro, ritorno di default). */
+/** Operational camera position after the intro and for default return. */
 export const HOME_POSITION: [number, number, number] = [0, 1.1, 4.6];
-/** Punto di partenza dell'intro: lontano e leggermente dall'alto (entro il
- *  maxDistance degli OrbitControls, che altrimenti clamperebbe il primo frame). */
+/** Intro start position within OrbitControls maximum distance to avoid frame-one clamping. */
 export const INTRO_POSITION: [number, number, number] = [0, 2.6, 8.4];
 
-// Distanza a fine fly-to: abbastanza vicina da leggere il contesto dell'evento,
-// senza superare i limiti di zoom degli OrbitControls (2.4 .. 9).
+// Fly-to distance preserves context while respecting OrbitControls zoom limits.
 const FLY_MIN_DIST = 2.9;
 const FLY_MAX_DIST = 4.2;
 
@@ -21,7 +19,7 @@ const easeInOutCubic = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 interface Flight {
-  fromDir: THREE.Vector3; // direzione camera→origine normalizzata di partenza
+  fromDir: THREE.Vector3; // Initial normalized camera-to-origin direction.
   toDir: THREE.Vector3;
   fromDist: number;
   toDist: number;
@@ -30,14 +28,13 @@ interface Flight {
 }
 
 /**
- * Regista di camera: due movimenti cinematici, entrambi in coordinate sferiche
- * (slerp della direzione + lerp della distanza, così l'orbita non attraversa
- * mai il globo).
- *  - Intro al mount: dolly-in dal punto lontano alla posizione operativa.
- *  - Fly-to: alla selezione di un evento (click sul globo, ticker, pannello)
- *    la camera vola sopra l'epicentro mantenendo la distanza corrente (clampata).
- * Durante il volo gli OrbitControls sono disabilitati e l'auto-rotazione in
- * pausa; alla fine riprendono da soli.
+ * Camera director for two spherical cinematic movements.
+ * using direction slerp and distance lerp so the path never crosses the globe.
+ *  - Mount intro: dolly from the distant start to the operational position.
+ *  - Fly to a selected event from the globe, ticker, or panel.
+ *    The camera flies above the epicentre while preserving a clamped distance.
+ * OrbitControls and auto-rotation remain disabled during flight.
+ * and resume automatically when the movement ends.
  */
 export function CameraRig() {
   const camera = useThree((s) => s.camera);
@@ -63,13 +60,13 @@ export function CameraRig() {
     pauseRotation();
   };
 
-  // Intro: parte dalla INTRO_POSITION (impostata sulla camera dal Canvas).
+  // Start the intro from the Canvas-provided INTRO_POSITION.
   useEffect(() => {
     startFlight(new THREE.Vector3(...HOME_POSITION), 2.4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fly-to sull'evento selezionato (solo su cambi reali di selezione).
+  // Fly only when the selected event actually changes.
   useEffect(() => {
     if (!selectedId || selectedId === prevSelectedRef.current) {
       prevSelectedRef.current = selectedId;
@@ -94,7 +91,7 @@ export function CameraRig() {
     const e = easeInOutCubic(flight.t);
 
     const arc = new THREE.Quaternion().setFromUnitVectors(flight.fromDir, flight.toDir);
-    const step = new THREE.Quaternion().slerp(arc, e); // identità → arco completo
+    const step = new THREE.Quaternion().slerp(arc, e); // Identity to full arc.
     const dir = flight.fromDir.clone().applyQuaternion(step);
     const dist = THREE.MathUtils.lerp(flight.fromDist, flight.toDist, e);
 

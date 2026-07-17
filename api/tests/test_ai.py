@@ -1,10 +1,4 @@
-"""Test degli endpoint /ai/* con il client DeepSeek sostituito (niente rete).
-
-`api.ai._chat` è l'unico punto di contatto con l'esterno: nei test lo si
-rimpiazza con una coroutine finta, così si copre tutta la logica applicativa
-(parsing/validazione filtri, coerenza vicinanza, cache del briefing, errori)
-in modo deterministico.
-"""
+"""Deterministic AI endpoint tests with the DeepSeek client replaced."""
 
 from __future__ import annotations
 
@@ -67,7 +61,7 @@ def test_ai_query_translates_filters(client, monkeypatch):
 
 
 def test_ai_query_drops_incomplete_near(client, monkeypatch):
-    """Vicinanza parziale (manca radius_km) → azzerata, non propagata a metà."""
+    """Discard incomplete proximity output instead of partially propagating it."""
     monkeypatch.setattr(
         ai_module,
         "_chat",
@@ -80,7 +74,7 @@ def test_ai_query_drops_incomplete_near(client, monkeypatch):
 
 
 def test_ai_query_invalid_json_is_502(client, monkeypatch):
-    monkeypatch.setattr(ai_module, "_chat", _fake_chat("non sono json"))
+    monkeypatch.setattr(ai_module, "_chat", _fake_chat("not json"))
     resp = client.post("/ai/query", json={"question": "terremoti oggi"})
     assert resp.status_code == 502
 
@@ -96,7 +90,7 @@ def test_ai_query_out_of_bounds_filters_502(client, monkeypatch):
 
 
 def test_ai_requires_api_key(client, monkeypatch):
-    """Senza DEEPSEEK_API_KEY (e senza patch di _chat) → 503 esplicita."""
+    """A missing API key returns an explicit 503 when the client is not mocked."""
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     resp = client.post("/ai/query", json={"question": "terremoti oggi"})
     assert resp.status_code == 503

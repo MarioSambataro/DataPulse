@@ -2,12 +2,9 @@ import { Bloom, EffectComposer, Noise, ToneMapping, Vignette } from "@react-thre
 import { BlendFunction, ToneMappingMode } from "postprocessing";
 
 /**
- * Catena di post-processing "cinematografica":
- *  - Bloom in HDR (prima del tone mapping): fa irradiare solo ciò che supera la
- *    soglia — luci città, colonne di luce, nuclei dei ping, riflessi diurni —
- *    senza velare il resto della scena;
- *  - ToneMapping ACES: sostituisce quello del renderer (l'EffectComposer lo
- *    disabilita per lavorare in HDR);
+ * Cinematic post-processing chain:
+ *  - HDR bloom before tone mapping affects only high-intensity scene elements;
+ *  - ACES tone mapping replaces renderer mapping after HDR composition.
  *  - Vignette + grana leggerissima: look da monitor da sala operativa.
  */
 export function Effects({ daytime = false }: { daytime?: boolean }) {

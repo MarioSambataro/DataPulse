@@ -12,22 +12,19 @@ import type { Event } from "../types";
 import { Beams, type BeamSpec } from "./Beams";
 import { epicenterFragment, epicenterVertex } from "./eventShaders";
 
-// Fattore di scala visivo dei ping rispetto alla dimensione "fisica" da magnitudo,
-// per renderli ben leggibili sul globo senza coprire i vicini.
+// Visual ping scale balances readability with nearby-event separation.
 const PING_SCALE = 2.4;
 
-// Sopra questa magnitudo l'evento ha anche una colonna di luce verticale:
-// i sismi forti si leggono a colpo d'occhio anche da lontano/di profilo.
+// Events above this magnitude also receive a vertical light column.
+// Strong events remain legible from a distance and at oblique angles.
 const BEAM_MIN_MAG = 5;
 const MAG_MAX = 8;
 
-const PLANE_NORMAL = new THREE.Vector3(0, 0, 1); // normale del PlaneGeometry locale
+const PLANE_NORMAL = new THREE.Vector3(0, 0, 1); // Local PlaneGeometry normal.
 
 /**
- * Epicentri sismici come singolo InstancedMesh (un quad "shockwave" per evento,
- * tangente alla superficie). Colore = gradiente severità, dimensione = magnitudo,
- * doppia onda pulsante via shader (più veloce e più "bianca" sui forti); i sismi
- * M≥5 hanno anche una colonna di luce. Click → selezione dell'evento.
+ * Seismic epicentres rendered as one surface-tangent InstancedMesh. Severity drives
+ * color, magnitude drives size and pulse speed, and strong events receive beams.
  */
 export function Epicenters({
   events,
@@ -42,7 +39,7 @@ export function Epicenters({
   const count = events.length;
   const pauseRotation = useStore((s) => s.pauseRotation);
   const resumeRotationAfter = useStore((s) => s.resumeRotationAfter);
-  // Indice dell'istanza sotto il puntatore (tooltip hover, come per i vulcani).
+  // Track the hovered instance for its tooltip.
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
@@ -54,13 +51,13 @@ export function Epicenters({
         uniforms: { uTime: { value: 0 } },
         transparent: true,
         depthWrite: false,
-        toneMapped: false, // colori pieni: i ping spiccano sulle luci città in vista notte
+        toneMapped: false, // Preserve vivid pings over night city lights.
         blending: THREE.NormalBlending,
       }),
     [],
   );
 
-  // Popola matrici per-istanza + attributi (colore severità, fase anello).
+  // Populate per-instance transforms, severity colors, and ring phases.
   useLayoutEffect(() => {
     const mesh = meshRef.current;
     if (!mesh || count === 0) return;
@@ -77,7 +74,7 @@ export function Epicenters({
       const ev = events[i];
       const [x, y, z] = latLonToVec3(ev.lat, ev.lon, radius * 1.004);
       position.set(x, y, z);
-      // Orienta il quad tangente alla superficie (normale = direzione radiale).
+      // Orient each quad tangent to the surface along the radial normal.
       quaternion.setFromUnitVectors(PLANE_NORMAL, position.clone().normalize());
       const size = magnitudeSize(ev.magnitude) * radius * PING_SCALE;
       scale.set(size, size, size);
@@ -99,8 +96,7 @@ export function Epicenters({
     geometry.setAttribute("aMag", new THREE.InstancedBufferAttribute(mags, 1));
   }, [events, count, radius, geometry]);
 
-  // Colonne di luce solo per i sismi forti: altezza e larghezza crescono con
-  // la magnitudo, colore identico al ping (il colore segue l'entità).
+  // Strong-event beam dimensions grow with magnitude and reuse the ping color.
   const beams = useMemo<BeamSpec[]>(
     () =>
       events
@@ -128,7 +124,7 @@ export function Epicenters({
     e.stopPropagation();
     const ev = events[e.instanceId];
     if (ev) onSelect(ev.id);
-    // Click su un epicentro: tieni fermo il globo un attimo più a lungo.
+    // Keep the globe still briefly after selecting an epicentre.
     pauseRotation();
     resumeRotationAfter(4000);
   };
@@ -143,7 +139,7 @@ export function Epicenters({
   return (
     <group>
       <instancedMesh
-        // Rimonta quando cambia il numero di eventi (args[count] è immutabile a runtime).
+        // Remount when the immutable instance count changes.
         key={count}
         ref={meshRef}
         args={[geometry, material, count]}

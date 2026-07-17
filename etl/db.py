@@ -1,8 +1,7 @@
-"""Accesso al DB per i job ETL: engine + upsert idempotente in `events`.
+"""Database engine and idempotent `events` upserts for ETL jobs.
 
-L'upsert usa `INSERT ... ON CONFLICT (id) DO UPDATE`: rilanciare un job non
-duplica le righe, aggiorna quelle esistenti. La colonna `geom` non viene mai
-toccata qui — la mantiene il trigger DB a partire da `lat`/`lon`.
+Upserts update existing deterministic IDs without duplicates. The database
+trigger, not ETL, derives `geom` from coordinates.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from sqlalchemy.engine import Engine
 
 from etl.config import database_url
 
-# Colonne aggiornate in caso di conflitto (tutto tranne `id`, `geom`, `ingested_at`).
+# Columns updated on conflict, excluding identity, geometry, and ingestion time.
 _UPDATE_COLUMNS = (
     "source",
     "event_type",
@@ -33,23 +32,22 @@ _UPDATE_COLUMNS = (
 
 
 def get_engine(url: str | None = None) -> Engine:
-    """Crea un Engine SQLAlchemy (psycopg v3) verso il DB DataPulse."""
+    """Create a psycopg v3 SQLAlchemy engine for DataPulse."""
     return create_engine(url or database_url(), future=True)
 
 
 def upsert_events(engine: Engine, records: list[dict[str, Any]]) -> int:
-    """Upsert idempotente dei record in `events`. Ritorna il numero di righe inviate.
+    """Idempotently upsert event records and return the number submitted.
 
-    `records` deve contenere solo colonne dello schema (vedi `normalize.EVENT_COLUMNS`),
-    **senza** `geom`: il trigger `trg_events_sync_geom` la ricalcola a ogni
-    insert/update di `lat`/`lon`.
+    Records contain only public schema columns and omit `geom`, which the
+    database trigger recalculates whenever coordinates change.
     """
     if not records:
         return 0
 
     stmt = insert(Event).values(records)
     update_set = {col: getattr(stmt.excluded, col) for col in _UPDATE_COLUMNS}
-    # Aggiorna anche il timestamp di ingestione all'ultima scrittura.
+    # Record the latest successful write time.
     update_set["ingested_at"] = func.now()
     stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_set)
 

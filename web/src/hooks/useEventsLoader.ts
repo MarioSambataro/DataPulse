@@ -1,27 +1,12 @@
-// Hook di caricamento eventi: al mount fa un fetch di GET /events e poi un
-// refresh periodico (polling, POLL_INTERVAL_MS). Popola lo store (setEvents) ed
-// espone lo stato per l'HUD.
-//
-// Niente flicker: il primo caricamento mostra "loading"; i refresh successivi sono
-// silenziosi (lo stato resta "ready") e si limitano a rimpiazzare gli eventi nello
-// store. Se un refresh fallisce ma abbiamo già dati, restiamo "ready" (non si
-// sbandiera FEED OFFLINE su un buco transitorio); l'errore diventa visibile solo
-// se è il primo caricamento a fallire.
-//
-// SEZIONE 12 — feed live SSE: in parallelo al polling (che resta come rete di
-// sicurezza) si apre `GET /events/stream`; i nuovi eventi ingeriti arrivano in
-// push e vengono fusi nello store (mergeEvents), il badge diventa LIVE.
-// In modalità AI (aiMode) né il polling né l'SSE toccano lo store: il globo sta
-// mostrando il risultato della query e non va sovrascritto.
+// Load events with initial fetching, silent polling, and SSE updates. Existing
+// data survives transient refresh failures, and AI mode freezes its filtered set.
 
 import { useEffect, useState } from "react";
 
 import { POLL_INTERVAL_MS, fetchEvents, isMockMode, openEventStream } from "../lib/api";
 import { useStore } from "../store/useStore";
 
-// Render Free può impiegare circa un minuto a riattivare il container. Durante
-// il cold start manteniamo lo stato "loading" e ritentiamo con backoff, invece
-// di mostrare subito un falso "feed offline" a chi apre la demo portfolio.
+// Render cold starts may take about a minute, so initial loading retries with backoff.
 const INITIAL_RETRY_DELAYS_MS = [3_000, 5_000, 8_000, 12_000, 15_000, 20_000];
 
 function waitForRetry(ms: number, signal: AbortSignal): Promise<void> {
@@ -84,7 +69,7 @@ export function useEventsLoader(): EventsLoadState {
       try {
         const page = initial ? await fetchInitialEvents(signal) : await fetchEvents(signal);
         if (cancelled || signal.aborted) return;
-        // In modalità AI il globo mostra il risultato della query: non sovrascrivere.
+        // Do not overwrite an AI-filtered dataset.
         if (!useStore.getState().aiMode) setEvents(page.items);
         hasData = true;
         setStatus("ready");
@@ -92,7 +77,7 @@ export function useEventsLoader(): EventsLoadState {
       } catch (err: unknown) {
         if (cancelled || signal.aborted) return;
         setError(err instanceof Error ? err.message : String(err));
-        // Refresh fallito con dati già presenti → resta "ready" (no flicker/offline).
+        // Keep existing data ready after a failed refresh.
         if (!hasData) setStatus("error");
       }
     };
@@ -100,7 +85,7 @@ export function useEventsLoader(): EventsLoadState {
     void load(true);
     const id = window.setInterval(() => void load(false), POLL_INTERVAL_MS);
 
-    // Feed live SSE (non in mock: non c'è backend). EventSource fa retry da solo.
+    // Open SSE outside mock mode; EventSource retries automatically.
     let closeStream: (() => void) | null = null;
     if (!isMockMode()) {
       const { mergeEvents, setLive } = useStore.getState();

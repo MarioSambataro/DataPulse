@@ -1,4 +1,4 @@
-# Gli script shell DEVONO avere line ending LF anche se clonati/editati su Windows:
-# un CRLF rompe lo shebang/entrypoint dentro l'immagine Docker Linux.
+# Shell scripts must retain LF line endings when edited on Windows.
+# CRLF would break the shebang and entrypoint inside the Linux image.
 *.sh text eol=lf
 docker-entrypoint.sh text eol=lf

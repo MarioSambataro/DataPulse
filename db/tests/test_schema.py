@@ -1,4 +1,4 @@
-"""Test dello schema (statici, senza connessione al DB)."""
+"""Static schema tests that do not require a database connection."""
 
 from db.models import EVENT_TYPES, SOURCES, Event
 

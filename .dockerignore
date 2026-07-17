@@ -1,4 +1,4 @@
-# Mantiene l'immagine API snella: fuori frontend, build, cache, segreti e VCS.
+# Keep frontend files, builds, caches, secrets, and VCS data out of the API image.
 .git
 .github
 .gitignore

@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Base URL del backend DataPulse (GET /events, /stats). Default dev: http://localhost:8000. */
+  /** DataPulse backend base URL. Development default: http://localhost:8000. */
   readonly VITE_API_URL?: string;
 }
 

@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 /* ============================================================
-   DataPulse — design system enterprise (shadcn / New York)
-   Base neutra slate + accento teal. Light + dark via classe
-   .dark su <html> (gestita dal ThemeProvider). Il globo 3D
-   vive comunque su sfondo scuro dentro le proprie card.
+   DataPulse enterprise design system (shadcn / New York).
+   Neutral slate foundation with a teal accent. ThemeProvider
+   synchronizes light/dark UI state with the 3D globe.
+
    ============================================================ */
 
 @layer base {
@@ -134,7 +134,7 @@
 }
 
 @layer components {
-  /* Card "glass": traslucida + blur, usata dai pannelli sopra il globo. */
+  /* Translucent glass card used by panels above the globe. */
   .glass {
     @apply border border-border/70 bg-card/70 shadow-2xl backdrop-blur-xl
       supports-[backdrop-filter]:bg-card/60;
@@ -155,8 +155,8 @@
     @apply font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground;
   }
 
-  /* Ingresso HUD: i pannelli entrano in stagger dopo lo splash (delay inline
-     per elemento in App). opacity:0 di partenza → nessun flash pre-animazione. */
+  /* HUD panels enter with staggered delays after the splash. Initial opacity
+     prevents a flash before animation starts. */
   .hud-in {
     opacity: 0;
     animation: hud-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -200,7 +200,7 @@
   }
 }
 
-/* Scrollbar discreta per le liste (WebKit). */
+/* Subtle WebKit scrollbars for lists. */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

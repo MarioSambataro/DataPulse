@@ -1,6 +1,4 @@
-// Pannello osservabilità: stato DB, freschezza dei dati ETL (età dell'ultima
-// ingestione), feed live SSE, latenza API. Mostra che le pipeline sono vive —
-// e quando non lo sono, lo dice invece di fingere.
+// Operational status for database health, ETL freshness, SSE, and API latency.
 
 import { Database, Radio, Server, Timer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";

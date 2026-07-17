@@ -25,32 +25,32 @@ function ev(over: Partial<Event>): Event {
 }
 
 describe("deriveStats", () => {
-  it("conta le finestre 24h/7g e la max magnitudo", () => {
+  it("computes 24-hour and 7-day windows plus maximum magnitude", () => {
     const events = [
       ev({ id: "a", occurred_at: "2026-06-29T06:00:00Z", magnitude: 4 }),
       ev({ id: "b", occurred_at: "2026-06-29T10:00:00Z", magnitude: 6.2 }),
-      ev({ id: "c", occurred_at: "2026-06-26T00:00:00Z", magnitude: 7 }), // dentro 7g, fuori 24h
-      ev({ id: "d", occurred_at: "2026-06-10T00:00:00Z", magnitude: 8 }), // fuori 7g
+      ev({ id: "c", occurred_at: "2026-06-26T00:00:00Z", magnitude: 7 }), // Within 7d, outside 24h.
+      ev({ id: "d", occurred_at: "2026-06-10T00:00:00Z", magnitude: 8 }), // Outside 7d.
     ];
     const s = deriveStats(events, NOW);
     expect(s.events_24h).toBe(2);
     expect(s.events_7d).toBe(3);
     expect(s.earthquakes_24h).toBe(2);
-    expect(s.max_magnitude_24h).toBe(6.2); // ignora il M7 fuori 24h
+    expect(s.max_magnitude_24h).toBe(6.2); // Ignore M7 outside 24h.
   });
 
-  it("max magnitudo null se nessun terremoto in 24h", () => {
+  it("returns null maximum magnitude without recent earthquakes", () => {
     const events = [ev({ event_type: "volcano", magnitude: null, occurred_at: "2026-06-29T09:00:00Z" })];
     const s = deriveStats(events, NOW);
     expect(s.earthquakes_24h).toBe(0);
     expect(s.max_magnitude_24h).toBeNull();
   });
 
-  it("vulcani attivi 7g = numeri GVP distinti (fallback id)", () => {
+  it("counts distinct active GVP volcanoes with ID fallback", () => {
     const events = [
       ev({ id: "v1", event_type: "volcano", magnitude: null, meta: { volcano_number: "211060" } }),
-      ev({ id: "v2", event_type: "volcano", magnitude: null, meta: { volcano_number: "211060" } }), // stesso vulcano
-      ev({ id: "v3", event_type: "volcano", magnitude: null, meta: {} }), // senza numero → id
+      ev({ id: "v2", event_type: "volcano", magnitude: null, meta: { volcano_number: "211060" } }), // Same volcano.
+      ev({ id: "v3", event_type: "volcano", magnitude: null, meta: {} }), // Fall back to ID.
     ];
     expect(deriveStats(events, NOW).active_volcanoes_7d).toBe(2);
   });

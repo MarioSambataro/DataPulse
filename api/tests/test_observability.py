@@ -1,9 +1,4 @@
-"""Test di /status, /metrics, caching HTTP (ETag/304) e rate limiting.
-
-Stessa strategia di test_api.py: Postgres reale, sessione transazionale
-(conftest). Il rate limit si regola via env `RATE_LIMIT_PER_MINUTE` (letta a
-ogni richiesta, quindi il monkeypatch dell'env basta, senza ricostruire l'app).
-"""
+"""Tests for status, metrics, HTTP caching, and rate limiting."""
 
 from __future__ import annotations
 
@@ -50,7 +45,7 @@ def test_status_reports_freshness(client, db_session):
     body = client.get("/status").json()
     assert body["events_total"] == 1
     assert body["last_ingested_at"] is not None
-    # ingested_at è server_default now() → età piccola ma non negativa.
+    # Server-default ingestion time should produce a small non-negative age.
     assert body["last_event_age_s"] is not None
     assert 0 <= body["last_event_age_s"] < 3600
 
@@ -61,7 +56,7 @@ def test_status_reports_freshness(client, db_session):
 
 
 def test_metrics_exposition(client):
-    client.get("/health")  # almeno una richiesta registrata
+    client.get("/health")  # Register at least one request.
     resp = client.get("/metrics")
     assert resp.status_code == 200
     assert "datapulse_http_requests_total" in resp.text
@@ -105,15 +100,15 @@ def test_health_not_cached(client):
 def test_rate_limit_kicks_in(client, monkeypatch):
     from api.middleware import reset_rate_limiter
 
-    reset_rate_limiter()  # non ereditare hit dai test precedenti (finestra 60s)
+    reset_rate_limiter()  # Avoid carrying hits across the 60-second window.
     monkeypatch.setenv("RATE_LIMIT_PER_MINUTE", "3")
-    # Path non esente e senza DB: le 404 contano comunque nella finestra.
+    # Unmatched non-exempt paths still count toward the window.
     for _ in range(3):
         assert client.get("/nope").status_code == 404
     resp = client.get("/nope")
     assert resp.status_code == 429
     assert resp.headers.get("retry-after")
-    reset_rate_limiter()  # non inquinare i test successivi
+    reset_rate_limiter()  # Keep subsequent tests isolated.
 
 
 def test_rate_limit_exempts_health(client, monkeypatch):
