@@ -18,7 +18,7 @@ test("the dashboard starts with the globe and HUD", async ({ page }) => {
   await expect(page.getByLabel("Filtri")).toBeVisible();
 
   // The top bar displays an event count after the mock feed loads.
-  await expect(page.getByText(/eventi/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("banner")).toContainText(/eventi/i, { timeout: 15_000 });
 });
 
 test("replay can be opened and closed", async ({ page }) => {
@@ -48,14 +48,30 @@ test("the mobile HUD fits the viewport and exposes every tool", async ({ page })
   await page.goto("/?mock=1");
 
   await expect(page.getByRole("banner")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Strumenti dashboard" })).toBeVisible();
+  const menu = page.getByRole("button", { name: "Apri menu" });
+  await expect(menu).toBeVisible();
+  await menu.click();
 
-  await page.getByRole("button", { name: "Dati" }).click();
-  const mobilePanel = page.getByRole("complementary", { name: "Dati" });
-  await expect(mobilePanel.getByLabel("Statistiche 24 ore")).toBeVisible();
+  const drawer = page.getByRole("dialog", { name: "Control Center" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("navigation", { name: "Strumenti dashboard" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Filtri" }).click();
-  await expect(page.getByRole("complementary", { name: "Filtri" }).getByLabel("Filtri")).toBeVisible();
+  await expect(drawer.getByLabel("Statistiche 24 ore")).toBeVisible();
+  await expect(drawer.getByRole("button", { name: "AI" })).toHaveCount(0);
+
+  await drawer.getByRole("button", { name: "Filtri" }).click();
+  await expect(drawer.locator("#mobile-hud-panel").getByLabel("Filtri")).toBeVisible();
+
+  await drawer.getByRole("button", { name: "Chiudi pannello" }).click();
+  const aiButton = page.getByRole("button", { name: "Apri DataPulse AI" });
+  await expect(aiButton).toBeVisible();
+  await aiButton.click();
+
+  const aiChat = page.getByRole("dialog", { name: "DataPulse AI" });
+  await expect(aiChat).toBeVisible();
+  await expect(aiChat.getByPlaceholder("Chiedi a DataPulse…")).toBeVisible();
+  await aiChat.getByRole("button", { name: "Chiudi DataPulse AI" }).click();
+  await expect(aiChat).toHaveCount(0);
 
   const overflows = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
